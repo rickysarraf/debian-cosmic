@@ -13,3 +13,8 @@
 ## 3. Workflows
 - **Building Monodebs:** Use `just package-debs` from the root. This builds both Epoch and Utils in containers and extracts them to `dist/`.
 - **Updating Recipes:** Modify the Dockerfiles in `images/cosmic-epoch/` or `images/cosmic-utils/`.
+
+## 4. CI/CD Resource Optimization
+- **Concurrency Control:** Workflows use `concurrency` groups mapped to `${{ github.workflow }}-${{ github.ref }}`.
+- **Auto-Cancellation:** Pushing a new commit to a branch (e.g., `wip/*` or `main`) automatically cancels any existing in-flight builds for **that specific branch only**.
+- **Isolation:** Builds on `main` are never interrupted by pushes to other branches, ensuring the production pipeline remains stable.
