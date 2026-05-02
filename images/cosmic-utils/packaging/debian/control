@@ -4,7 +4,7 @@ Architecture: amd64
 Maintainer: Ritesh Raj Sarraf <rrs@debian.org>
 Section: x11
 Priority: optional
-Homepage: https://github.com/cosmic-utils
+Homepage: https://github.com/rickysarraf/debian-cosmic
 Depends: cosmic-epoch-monorepo (= @VERSION@)
 Built-Using: cosmic-epoch-monorepo (= @VERSION@)
 Description: Unified COSMIC Community Utilities

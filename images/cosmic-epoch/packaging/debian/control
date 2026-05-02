@@ -4,7 +4,7 @@ Architecture: amd64
 Maintainer: Ritesh Raj Sarraf <rrs@debian.org>
 Section: x11
 Priority: optional
-Homepage: https://github.com/pop-os/cosmic-epoch
+Homepage: https://github.com/rickysarraf/debian-cosmic
 Depends: libpipewire-0.3-0,
          libwayland-client0,
          libxkbcommon0,

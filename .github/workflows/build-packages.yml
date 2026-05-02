@@ -71,6 +71,11 @@ jobs:
         run: |
           mkdir -p dist
           docker run --rm -v $(pwd)/dist:/dist ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/${{ matrix.image }}:latest cp /*.deb /dist/
+
+      - name: Test Package Installation
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ./dist/*.deb
         
       - name: Upload .deb artifacts
         uses: actions/upload-artifact@v4
