@@ -12,7 +12,11 @@ RUN apt-get update && apt-get install -y \
     libpolkit-gobject-1-dev libgudev-1.0-dev libglib2.0-dev \
     libjson-glib-dev libpulse-dev libasound2-dev libssl-dev \
     libflatpak-dev libostree-dev libarchive-dev libgstreamer1.0-dev \
-    libgstreamer-plugins-base1.0-dev clang llvm-dev cmake \
+    libgstreamer-plugins-base1.0-dev libgstreamer-plugins-good1.0-dev \
+    libgstreamer-plugins-bad1.0-dev libcamera-dev libv4l-dev \
+    libevent-dev libyaml-dev libusb-1.0-0-dev libgnutls28-dev \
+    libxcb-shape0-dev libxcb-xfixes0-dev libvulkan-dev \
+    libfprint-2-dev clang llvm-dev cmake \
     libpixman-1-dev libwayland-bin libdisplay-info-dev libxcb-xinput-dev \
     wayland-protocols extra-cmake-modules scdoc sed make libclang-dev \
     gtk-update-icon-cache hicolor-icon-theme bsdextrautils \
@@ -58,6 +62,46 @@ RUN git clone --depth 1 https://github.com/cosmic-utils/tasks.git && \
 # app-hub (AppImage Manager)
 RUN git clone --depth 1 https://github.com/cosmic-utils/app-hub.git && \
     cd app-hub && just build-release && just rootdir=/export prefix=/usr install
+
+# stellarshot (Backup application)
+RUN git clone --depth 1 https://github.com/cosmic-utils/stellarshot.git && \
+    cd stellarshot && just build-release && just rootdir=/export prefix=/usr install
+
+# forecast (Weather application)
+RUN git clone --depth 1 https://github.com/cosmic-utils/forecast.git && \
+    cd forecast && just build-release && just rootdir=/export prefix=/usr install
+
+# examine (System information viewer)
+RUN git clone --depth 1 https://github.com/cosmic-utils/examine.git && \
+    cd examine && just build-release && just rootdir=/export prefix=/usr install
+
+# web-apps (Web application manager)
+RUN git clone --depth 1 https://github.com/cosmic-utils/web-apps.git && \
+    cd web-apps && just build-release && just rootdir=/export prefix=/usr install
+
+# camera (Camera application)
+RUN git clone --depth 1 https://github.com/cosmic-utils/camera.git && \
+    cd camera && just build-release && just rootdir=/export prefix=/usr install
+
+# enroll (Fingerprint manager)
+RUN git clone --depth 1 https://github.com/cosmic-utils/enroll.git && \
+    cd enroll && just build-release && just rootdir=/export prefix=/usr install
+
+# wizard (.deb package installer)
+RUN git clone --depth 1 https://github.com/cosmic-utils/wizard.git && \
+    cd wizard && just build-release && just rootdir=/export prefix=/usr install
+
+# observatory (System monitor - archived, requires submodules)
+RUN git clone --depth 1 --recurse-submodules https://github.com/cosmic-utils/observatory.git && \
+    cd observatory && just build-release && just rootdir=/export prefix=/usr install
+
+# cosmic-ext-applet-ollama (Ollama applet)
+RUN git clone --depth 1 https://github.com/cosmic-utils/cosmic-ext-applet-ollama.git && \
+    cd cosmic-ext-applet-ollama && just build-release && just rootdir=/export prefix=/usr install
+
+# gui-scale-applet (Tailscale applet)
+RUN git clone --depth 1 https://github.com/cosmic-utils/gui-scale-applet.git && \
+    cd gui-scale-applet && just build-release && just rootdir=/export prefix=/usr install
 
 # 3. SANitization: Remove fundamental system binaries
 RUN rm -f /export/usr/bin/env /export/usr/bin/bash /export/usr/bin/sh /export/usr/bin/dash
