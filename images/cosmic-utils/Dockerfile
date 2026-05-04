@@ -12,7 +12,7 @@ RUN apt-get update && apt-get install -y \
     libpolkit-gobject-1-dev libgudev-1.0-dev libglib2.0-dev \
     libjson-glib-dev libpulse-dev libasound2-dev libssl-dev \
     libflatpak-dev libostree-dev libarchive-dev libgstreamer1.0-dev \
-    libgstreamer-plugins-base1.0-dev libgstreamer-plugins-good1.0-dev \
+    libgstreamer-plugins-base1.0-dev \
     libgstreamer-plugins-bad1.0-dev libcamera-dev libv4l-dev \
     libevent-dev libyaml-dev libusb-1.0-0-dev libgnutls28-dev \
     libxcb-shape0-dev libxcb-xfixes0-dev libvulkan-dev \
