@@ -102,6 +102,30 @@ RUN git clone --depth 1 https://github.com/cosmic-utils/cosmic-ext-applet-ollama
 RUN git clone --depth 1 https://github.com/cosmic-utils/gui-scale-applet.git && \
     cd gui-scale-applet && just build-release && just rootdir=/export prefix=/usr install
 
+# minimon-applet (System monitor applet)
+RUN git clone --depth 1 https://github.com/cosmic-utils/minimon-applet.git && \
+    cd minimon-applet && just build-release && just rootdir=/export prefix=/usr install
+
+# weather-applet
+RUN git clone --depth 1 https://github.com/cosmic-utils/cosmic-ext-applet-weather.git && \
+    cd cosmic-ext-applet-weather && just build && just rootdir=/export prefix=/usr install
+
+# sysinfo-applet
+RUN git clone --depth 1 https://github.com/cosmic-utils/cosmic-ext-applet-sysinfo.git && \
+    cd cosmic-ext-applet-sysinfo && just build && just rootdir=/export prefix=/usr install
+
+# logomenu-applet
+RUN git clone --depth 1 https://github.com/cosmic-utils/cosmic-ext-applet-logomenu.git && \
+    cd cosmic-ext-applet-logomenu && just build-release && just rootdir=/export prefix=/usr install
+
+# toot (Mastodon client)
+RUN git clone --depth 1 https://github.com/cosmic-utils/toot.git && \
+    cd toot && just build-release && just rootdir=/export prefix=/usr install
+
+# noctua (Image viewer)
+RUN git clone --depth 1 https://github.com/cosmic-utils/noctua.git && \
+    cd noctua && just build-release && just rootdir=/export prefix=/usr install
+
 # 3. SANitization: Remove fundamental system binaries
 RUN rm -f /export/usr/bin/env /export/usr/bin/bash /export/usr/bin/sh /export/usr/bin/dash
 
