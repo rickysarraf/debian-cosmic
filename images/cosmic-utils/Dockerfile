@@ -78,10 +78,6 @@ RUN git clone --depth 1 https://github.com/cosmic-utils/forecast.git && \
 RUN git clone --depth 1 https://github.com/cosmic-utils/examine.git && \
     cd examine && just build-release && just rootdir=/export prefix=/usr install
 
-# web-apps (Web application manager)
-RUN git clone --depth 1 https://github.com/cosmic-utils/web-apps.git && \
-    cd web-apps && just build-release && just rootdir=/export prefix=/usr install
-
 # camera (Camera application)
 RUN git clone --depth 1 https://github.com/cosmic-utils/camera.git && \
     cd camera && just build-release && just rootdir=/export prefix=/usr install
@@ -135,7 +131,7 @@ FROM busybox
 COPY --from=sysext /usr /usr
 COPY --from=deb-packager /cosmic-utils-monorepo.deb /cosmic-utils-monorepo.deb
 
-LABEL org.opencontainers.image.source="https://github.com/rickysarraf/desktop-brewery"
+LABEL org.opencontainers.image.source="https://github.com/rickysarraf/debian-cosmic"
 LABEL org.opencontainers.image.description="COSMIC Community Utilities (Sidecar Sysext and .deb Package)"
 LABEL org.opencontainers.image.licenses="GPL-3.0"
 
