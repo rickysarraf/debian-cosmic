@@ -82,10 +82,6 @@ RUN git clone --depth 1 https://github.com/cosmic-utils/examine.git && \
 RUN git clone --depth 1 https://github.com/cosmic-utils/camera.git && \
     cd camera && just build-release && just rootdir=/export prefix=/usr install
 
-# enroll (Fingerprint manager)
-RUN git clone --depth 1 https://github.com/cosmic-utils/enroll.git && \
-    cd enroll && just build-release && just rootdir=/export prefix=/usr install
-
 # observatory (System monitor - archived, requires submodules)
 RUN git clone --depth 1 --recurse-submodules https://github.com/cosmic-utils/observatory.git && \
     cd observatory && just build-release && just rootdir=/export prefix=/usr install
@@ -148,6 +144,7 @@ COPY --from=sysext /usr /usr
 COPY --from=deb-packager /cosmic-utils-monorepo.deb /cosmic-utils-monorepo.deb
 
 LABEL org.opencontainers.image.source="https://github.com/rickysarraf/debian-cosmic"
+LABEL org.opencontainers.image.description="COSMIC Community Utilities (Sidecar Sysext and .deb Package)"
 LABEL org.opencontainers.image.description="COSMIC Community Utilities (Sidecar Sysext and .deb Package)"
 LABEL org.opencontainers.image.licenses="GPL-3.0"
 
