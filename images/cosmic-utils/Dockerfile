@@ -86,10 +86,6 @@ RUN git clone --depth 1 https://github.com/cosmic-utils/camera.git && \
 RUN git clone --depth 1 https://github.com/cosmic-utils/enroll.git && \
     cd enroll && just build-release && just rootdir=/export prefix=/usr install
 
-# wizard (.deb package installer)
-RUN git clone --depth 1 https://github.com/cosmic-utils/wizard.git && \
-    cd wizard && just build-release && just rootdir=/export prefix=/usr install
-
 # observatory (System monitor - archived, requires submodules)
 RUN git clone --depth 1 --recurse-submodules https://github.com/cosmic-utils/observatory.git && \
     cd observatory && just build-release && just rootdir=/export prefix=/usr install
@@ -117,10 +113,6 @@ RUN git clone --depth 1 https://github.com/cosmic-utils/cosmic-ext-applet-sysinf
 # logomenu-applet
 RUN git clone --depth 1 https://github.com/cosmic-utils/cosmic-ext-applet-logomenu.git && \
     cd cosmic-ext-applet-logomenu && just build-release && just rootdir=/export prefix=/usr install
-
-# toot (Mastodon client)
-RUN git clone --depth 1 https://github.com/cosmic-utils/toot.git && \
-    cd toot && just build-release && just rootdir=/export prefix=/usr install
 
 # noctua (Image viewer)
 RUN git clone --depth 1 https://github.com/cosmic-utils/noctua.git && \
