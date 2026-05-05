@@ -82,10 +82,6 @@ RUN git clone --depth 1 https://github.com/cosmic-utils/examine.git && \
 RUN git clone --depth 1 https://github.com/cosmic-utils/camera.git && \
     cd camera && just build-release && just rootdir=/export prefix=/usr install
 
-# observatory (System monitor - archived, requires submodules)
-RUN git clone --depth 1 --recurse-submodules https://github.com/cosmic-utils/observatory.git && \
-    cd observatory && just build-release && just rootdir=/export prefix=/usr install
-
 # cosmic-ext-applet-ollama (Ollama applet)
 RUN git clone --depth 1 https://github.com/cosmic-utils/cosmic-ext-applet-ollama.git && \
     cd cosmic-ext-applet-ollama && just build-release && just rootdir=/export prefix=/usr install
