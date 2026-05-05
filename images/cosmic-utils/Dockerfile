@@ -15,7 +15,7 @@ RUN apt-get update && apt-get install -y \
     libgstreamer-plugins-base1.0-dev clang llvm-dev cmake \
     libpixman-1-dev libwayland-bin libdisplay-info-dev libxcb-xinput-dev \
     wayland-protocols extra-cmake-modules scdoc sed make libclang-dev \
-    gtk-update-icon-cache hicolor-icon-theme bsdextrautils \
+    gtk-update-icon-cache hicolor-icon-theme bsdextrautils patch \
     && rm -rf /var/lib/apt/lists/*
 
 # Memory Safety for CI
@@ -36,8 +36,11 @@ RUN git clone --depth 1 https://github.com/cosmic-utils/cosmic-ext-applet-extern
     cd cosmic-ext-applet-external-monitor-brightness && just build-release && just rootdir=/export prefix=/usr install
 
 # clipboard-manager (Corrected repo name)
+COPY dbus-toggle.patch /build/
 RUN git clone --depth 1 https://github.com/cosmic-utils/clipboard-manager.git && \
-    cd clipboard-manager && just build-release && just rootdir=/export prefix=/usr install
+    cd clipboard-manager && \
+    patch -p1 < ../dbus-toggle.patch && \
+    just build-release && just rootdir=/export prefix=/usr install
 
 # cosmic-ext-applet-vigil (Keep-awake tool)
 RUN git clone --depth 1 https://github.com/cosmic-utils/cosmic-ext-applet-vigil.git && \

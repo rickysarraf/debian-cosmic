@@ -1,0 +1,124 @@
+From 273100ee7e8d6f8f8e5756395fef73633c64fefd Mon Sep 17 00:00:00 2001
+From: Ritesh Raj Sarraf <rrs@researchut.com>
+Date: Tue, 5 May 2026 17:49:57 +0530
+Subject: [PATCH] feat: add D-Bus Toggle method for external shortcut support
+
+---
+ Cargo.lock  |  1 +
+ Cargo.toml  |  1 +
+ src/app.rs  |  3 ++-
+ src/dbus.rs | 47 +++++++++++++++++++++++++++++++++++++++++++++++
+ src/main.rs |  1 +
+ 5 files changed, 52 insertions(+), 1 deletion(-)
+ create mode 100644 src/dbus.rs
+
+diff --git a/Cargo.lock b/Cargo.lock
+index 16de7f2..a818061 100644
+--- a/Cargo.lock
++++ b/Cargo.lock
+@@ -962,6 +962,7 @@ dependencies = [
+  "tracing",
+  "tracing-journald",
+  "tracing-subscriber",
++ "zbus",
+ ]
+ 
+ [[package]]
+diff --git a/Cargo.toml b/Cargo.toml
+index e63949c..0e69633 100644
+--- a/Cargo.toml
++++ b/Cargo.toml
+@@ -41,6 +41,7 @@ include_dir = "0.7"
+ itertools = "0.14"
+ regex = "1"
+ open = "5"
++zbus = "5.1"
+ 
+ [dependencies.libcosmic]
+ git = "https://github.com/pop-os/libcosmic"
+diff --git a/src/app.rs b/src/app.rs
+index 9387798..12cba4d 100644
+--- a/src/app.rs
++++ b/src/app.rs
+@@ -30,7 +30,7 @@ use crate::message::{AppMsg, ConfigMsg, ContextMenuMsg};
+ use crate::navigation::EventMsg;
+ use crate::utils::task_message;
+ use crate::view::SCROLLABLE_ID;
+-use crate::{clipboard, clipboard_watcher, config, navigation};
++use crate::{clipboard, clipboard_watcher, config, navigation, dbus};
+ 
+ use cosmic::{cosmic_config, iced_runtime};
+ use std::sync::atomic::{self};
+@@ -570,6 +570,7 @@ impl<Db: DbTrait + 'static> cosmic::Application for AppState<Db> {
+             config::sub(),
+             navigation::sub().map(AppMsg::Navigation),
+             db_sub().map(AppMsg::Db),
++            Subscription::run(dbus::sub),
+         ];
+ 
+         if !self.clipboard_state.is_error() {
+diff --git a/src/dbus.rs b/src/dbus.rs
+new file mode 100644
+index 0000000..a7aed47
+--- /dev/null
++++ b/src/dbus.rs
+@@ -0,0 +1,47 @@
++use zbus::{interface, connection};
++use cosmic::iced::{futures::SinkExt, stream::channel};
++use futures::Stream;
++use crate::message::AppMsg;
++
++pub struct ClipboardInterface {
++    tx: tokio::sync::mpsc::Sender<()>,
++}
++
++#[interface(name = "io.github.cosmic_utils.ClipboardManager")]
++impl ClipboardInterface {
++    async fn toggle(&self) {
++        eprintln!("D-Bus: Toggle called!");
++        let _ = self.tx.send(()).await;
++    }
++}
++
++pub fn sub() -> impl Stream<Item = AppMsg> {
++    channel(1, async |mut output| {
++        eprintln!("D-Bus: Starting D-Bus server...");
++        let (tx, mut rx) = tokio::sync::mpsc::channel(1);
++        let interface = ClipboardInterface { tx };
++        
++        let connection = connection::Builder::session()
++            .unwrap()
++            .name("io.github.cosmic_utils.ClipboardManager")
++            .unwrap()
++            .serve_at("/io/github/cosmic_utils/ClipboardManager", interface)
++            .unwrap()
++            .build()
++            .await
++            .unwrap();
++
++        eprintln!("D-Bus: Server running at /io/github/cosmic_utils/ClipboardManager");
++
++        loop {
++            if rx.recv().await.is_some() {
++                eprintln!("D-Bus: Relaying TogglePopup message");
++                let _ = output.send(AppMsg::TogglePopup).await;
++            } else {
++                break;
++            }
++        }
++        
++        drop(connection);
++    })
++}
+diff --git a/src/main.rs b/src/main.rs
+index 4d53750..92ba40c 100644
+--- a/src/main.rs
++++ b/src/main.rs
+@@ -13,6 +13,7 @@ mod clipboard;
+ mod clipboard_watcher;
+ mod config;
+ mod db;
++mod dbus;
+ mod icon;
+ mod localize;
+ mod message;
