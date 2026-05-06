@@ -86,10 +86,6 @@ RUN git clone --depth 1 https://github.com/cosmic-utils/camera.git && \
 RUN git clone --depth 1 https://github.com/cosmic-utils/cosmic-ext-applet-ollama.git && \
     cd cosmic-ext-applet-ollama && just build-release && just rootdir=/export prefix=/usr install
 
-# gui-scale-applet (Tailscale applet)
-RUN git clone --depth 1 https://github.com/cosmic-utils/gui-scale-applet.git && \
-    cd gui-scale-applet && just build-release && just rootdir=/export prefix=/usr install
-
 # minimon-applet (System monitor applet)
 RUN git clone --depth 1 https://github.com/cosmic-utils/minimon-applet.git && \
     cd minimon-applet && just build-release && just rootdir=/export prefix=/usr install
