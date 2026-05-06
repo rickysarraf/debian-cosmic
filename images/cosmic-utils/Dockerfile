@@ -19,7 +19,7 @@ RUN apt-get update && apt-get install -y \
     libfprint-2-dev clang llvm-dev cmake \
     libpixman-1-dev libwayland-bin libdisplay-info-dev libxcb-xinput-dev \
     wayland-protocols extra-cmake-modules scdoc sed make libclang-dev \
-    gtk-update-icon-cache hicolor-icon-theme bsdextrautils patch \
+    gtk-update-icon-cache hicolor-icon-theme bsdextrautils patch libcairo2-dev \
     && rm -rf /var/lib/apt/lists/*
 
 # Memory Safety for CI
