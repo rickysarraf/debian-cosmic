@@ -1,3 +1,9 @@
+cosmic-utils-monorepo (1.0.12-1) unstable; urgency=low
+
+  * Synchronized with COSMIC Epoch 1.0.12.
+
+ -- Ritesh Raj Sarraf <rrs@debian.org>  Wed, 06 May 2026 12:00:00 +0530
+
 cosmic-utils-monorepo (1.0.11-2) unstable; urgency=low
 
   * Integrate D-Bus Toggle patch for clipboard-manager to support
