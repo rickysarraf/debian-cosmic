@@ -1,3 +1,10 @@
+cosmic-utils-monorepo (1.0.11-2) unstable; urgency=low
+
+  * Integrate D-Bus Toggle patch for clipboard-manager to support
+    external keyboard shortcuts.
+
+ -- Ritesh Raj Sarraf <rrs@debian.org>  Tue, 05 May 2026 18:00:00 +0530
+
 cosmic-utils-monorepo (1.0.11-1) unstable; urgency=low
 
   * Initial monorepo build of COSMIC Utilities.

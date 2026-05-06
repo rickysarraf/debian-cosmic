@@ -19,7 +19,7 @@ RUN apt-get update && apt-get install -y \
     libfprint-2-dev clang llvm-dev cmake \
     libpixman-1-dev libwayland-bin libdisplay-info-dev libxcb-xinput-dev \
     wayland-protocols extra-cmake-modules scdoc sed make libclang-dev \
-    gtk-update-icon-cache hicolor-icon-theme bsdextrautils \
+    gtk-update-icon-cache hicolor-icon-theme bsdextrautils patch \
     && rm -rf /var/lib/apt/lists/*
 
 # Memory Safety for CI
@@ -40,8 +40,11 @@ RUN git clone --depth 1 https://github.com/cosmic-utils/cosmic-ext-applet-extern
     cd cosmic-ext-applet-external-monitor-brightness && just build-release && just rootdir=/export prefix=/usr install
 
 # clipboard-manager (Corrected repo name)
+COPY dbus-toggle.patch /build/
 RUN git clone --depth 1 https://github.com/cosmic-utils/clipboard-manager.git && \
-    cd clipboard-manager && just build-release && just rootdir=/export prefix=/usr install
+    cd clipboard-manager && \
+    patch -p1 < ../dbus-toggle.patch && \
+    just build-release && just rootdir=/export prefix=/usr install
 
 # cosmic-ext-applet-vigil (Keep-awake tool)
 RUN git clone --depth 1 https://github.com/cosmic-utils/cosmic-ext-applet-vigil.git && \
@@ -75,25 +78,9 @@ RUN git clone --depth 1 https://github.com/cosmic-utils/forecast.git && \
 RUN git clone --depth 1 https://github.com/cosmic-utils/examine.git && \
     cd examine && just build-release && just rootdir=/export prefix=/usr install
 
-# web-apps (Web application manager)
-RUN git clone --depth 1 https://github.com/cosmic-utils/web-apps.git && \
-    cd web-apps && just build-release && just rootdir=/export prefix=/usr install
-
 # camera (Camera application)
 RUN git clone --depth 1 https://github.com/cosmic-utils/camera.git && \
     cd camera && just build-release && just rootdir=/export prefix=/usr install
-
-# enroll (Fingerprint manager)
-RUN git clone --depth 1 https://github.com/cosmic-utils/enroll.git && \
-    cd enroll && just build-release && just rootdir=/export prefix=/usr install
-
-# wizard (.deb package installer)
-RUN git clone --depth 1 https://github.com/cosmic-utils/wizard.git && \
-    cd wizard && just build-release && just rootdir=/export prefix=/usr install
-
-# observatory (System monitor - archived, requires submodules)
-RUN git clone --depth 1 --recurse-submodules https://github.com/cosmic-utils/observatory.git && \
-    cd observatory && just build-release && just rootdir=/export prefix=/usr install
 
 # cosmic-ext-applet-ollama (Ollama applet)
 RUN git clone --depth 1 https://github.com/cosmic-utils/cosmic-ext-applet-ollama.git && \
@@ -102,6 +89,26 @@ RUN git clone --depth 1 https://github.com/cosmic-utils/cosmic-ext-applet-ollama
 # gui-scale-applet (Tailscale applet)
 RUN git clone --depth 1 https://github.com/cosmic-utils/gui-scale-applet.git && \
     cd gui-scale-applet && just build-release && just rootdir=/export prefix=/usr install
+
+# minimon-applet (System monitor applet)
+RUN git clone --depth 1 https://github.com/cosmic-utils/minimon-applet.git && \
+    cd minimon-applet && just build-release && just rootdir=/export prefix=/usr install
+
+# weather-applet
+RUN git clone --depth 1 https://github.com/cosmic-utils/cosmic-ext-applet-weather.git && \
+    cd cosmic-ext-applet-weather && just build && just rootdir=/export prefix=/usr install
+
+# sysinfo-applet
+RUN git clone --depth 1 https://github.com/cosmic-utils/cosmic-ext-applet-sysinfo.git && \
+    cd cosmic-ext-applet-sysinfo && just build && just rootdir=/export prefix=/usr install
+
+# logomenu-applet
+RUN git clone --depth 1 https://github.com/cosmic-utils/cosmic-ext-applet-logomenu.git && \
+    cd cosmic-ext-applet-logomenu && just build-release && just rootdir=/export prefix=/usr install
+
+# noctua (Image viewer)
+RUN git clone --depth 1 https://github.com/cosmic-utils/noctua.git && \
+    cd noctua && just build-release && just rootdir=/export prefix=/usr install
 
 # 3. SANitization: Remove fundamental system binaries
 RUN rm -f /export/usr/bin/env /export/usr/bin/bash /export/usr/bin/sh /export/usr/bin/dash
@@ -132,7 +139,8 @@ FROM busybox
 COPY --from=sysext /usr /usr
 COPY --from=deb-packager /cosmic-utils-monorepo.deb /cosmic-utils-monorepo.deb
 
-LABEL org.opencontainers.image.source="https://github.com/rickysarraf/desktop-brewery"
+LABEL org.opencontainers.image.source="https://github.com/rickysarraf/debian-cosmic"
+LABEL org.opencontainers.image.description="COSMIC Community Utilities (Sidecar Sysext and .deb Package)"
 LABEL org.opencontainers.image.description="COSMIC Community Utilities (Sidecar Sysext and .deb Package)"
 LABEL org.opencontainers.image.licenses="GPL-3.0"
 
