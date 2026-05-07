@@ -1,3 +1,4 @@
+# syntax=docker/dockerfile:1
 # Stage 1: Builder
 FROM debian:testing AS builder
 
