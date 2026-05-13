@@ -138,7 +138,6 @@ COPY --from=deb-packager /cosmic-utils-monorepo.deb /cosmic-utils-monorepo.deb
 
 LABEL org.opencontainers.image.source="https://github.com/rickysarraf/debian-cosmic"
 LABEL org.opencontainers.image.description="COSMIC Community Utilities (Sidecar Sysext and .deb Package)"
-LABEL org.opencontainers.image.description="COSMIC Community Utilities (Sidecar Sysext and .deb Package)"
 LABEL org.opencontainers.image.licenses="GPL-3.0"
 
 CMD ["sh"]

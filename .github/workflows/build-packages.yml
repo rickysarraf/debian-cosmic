@@ -36,7 +36,7 @@ jobs:
     permissions:
       contents: read
       packages: write
-      actions: write
+      actions: write  # Required for GHA cache (cache-to: type=gha)
 
     steps:
       - name: Checkout repository
