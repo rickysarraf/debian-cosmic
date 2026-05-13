@@ -1,4 +1,4 @@
-# <img src="https://www.debian.org/logos/openlogo-nd-100.png" height="36"> <img src="https://raw.githubusercontent.com/pop-os/cosmic/master/cosmic-panel/res/cosmic-symbolic.svg" height="36"> Debian COSMIC
+# <img src="https://www.debian.org/logos/openlogo-nd-100.png" height="36"> 🌌 Debian COSMIC
 
 [![Debian COSMIC - Build Packages](https://github.com/rickysarraf/debian-cosmic/actions/workflows/build-packages.yml/badge.svg)](https://github.com/rickysarraf/debian-cosmic/actions/workflows/build-packages.yml)
 

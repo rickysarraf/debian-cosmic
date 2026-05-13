@@ -12,10 +12,15 @@ RUN apt-get update && apt-get install -y \
     libpolkit-gobject-1-dev libgudev-1.0-dev libglib2.0-dev \
     libjson-glib-dev libpulse-dev libasound2-dev libssl-dev \
     libflatpak-dev libostree-dev libarchive-dev libgstreamer1.0-dev \
-    libgstreamer-plugins-base1.0-dev clang llvm-dev cmake \
+    libgstreamer-plugins-base1.0-dev \
+    libgstreamer-plugins-bad1.0-dev libcamera-dev libv4l-dev \
+    libevent-dev libyaml-dev libusb-1.0-0-dev libgnutls28-dev \
+    libxcb-shape0-dev libxcb-xfixes0-dev libvulkan-dev \
+    libfprint-2-dev clang llvm-dev cmake \
     libpixman-1-dev libwayland-bin libdisplay-info-dev libxcb-xinput-dev \
     wayland-protocols extra-cmake-modules scdoc sed make libclang-dev \
-    gtk-update-icon-cache hicolor-icon-theme bsdextrautils patch \
+    gtk-update-icon-cache hicolor-icon-theme bsdextrautils patch libcairo2-dev \
+    libpoppler-glib-dev \
     && rm -rf /var/lib/apt/lists/*
 
 # Memory Safety for CI
@@ -62,6 +67,46 @@ RUN git clone --depth 1 https://github.com/cosmic-utils/tasks.git && \
 RUN git clone --depth 1 https://github.com/cosmic-utils/app-hub.git && \
     cd app-hub && just build-release && just rootdir=/export prefix=/usr install
 
+# stellarshot (Backup application)
+RUN git clone --depth 1 https://github.com/cosmic-utils/stellarshot.git && \
+    cd stellarshot && just build-release && just rootdir=/export prefix=/usr install
+
+# forecast (Weather application)
+RUN git clone --depth 1 https://github.com/cosmic-utils/forecast.git && \
+    cd forecast && just build-release && just rootdir=/export prefix=/usr install
+
+# examine (System information viewer)
+RUN git clone --depth 1 https://github.com/cosmic-utils/examine.git && \
+    cd examine && just build-release && just rootdir=/export prefix=/usr install
+
+# camera (Camera application)
+RUN git clone --depth 1 https://github.com/cosmic-utils/camera.git && \
+    cd camera && just build-release && just rootdir=/export prefix=/usr install
+
+# cosmic-ext-applet-ollama (Ollama applet)
+RUN git clone --depth 1 https://github.com/cosmic-utils/cosmic-ext-applet-ollama.git && \
+    cd cosmic-ext-applet-ollama && just build-release && just rootdir=/export prefix=/usr install
+
+# minimon-applet (System monitor applet)
+RUN git clone --depth 1 https://github.com/cosmic-utils/minimon-applet.git && \
+    cd minimon-applet && just build-release && just rootdir=/export prefix=/usr install
+
+# weather-applet
+RUN git clone --depth 1 https://github.com/cosmic-utils/cosmic-ext-applet-weather.git && \
+    cd cosmic-ext-applet-weather && just build && just rootdir=/export prefix=/usr install
+
+# sysinfo-applet
+RUN git clone --depth 1 https://github.com/cosmic-utils/cosmic-ext-applet-sysinfo.git && \
+    cd cosmic-ext-applet-sysinfo && just build && just rootdir=/export prefix=/usr install
+
+# logomenu-applet
+RUN git clone --depth 1 https://github.com/cosmic-utils/cosmic-ext-applet-logomenu.git && \
+    cd cosmic-ext-applet-logomenu && just build-release && just rootdir=/export prefix=/usr install
+
+# noctua (Image viewer)
+RUN git clone --depth 1 https://github.com/cosmic-utils/noctua.git && \
+    cd noctua && just build-release && just rootdir=/export prefix=/usr install
+
 # 3. SANitization: Remove fundamental system binaries
 RUN rm -f /export/usr/bin/env /export/usr/bin/bash /export/usr/bin/sh /export/usr/bin/dash
 
@@ -91,7 +136,8 @@ FROM busybox
 COPY --from=sysext /usr /usr
 COPY --from=deb-packager /cosmic-utils-monorepo.deb /cosmic-utils-monorepo.deb
 
-LABEL org.opencontainers.image.source="https://github.com/rickysarraf/desktop-brewery"
+LABEL org.opencontainers.image.source="https://github.com/rickysarraf/debian-cosmic"
+LABEL org.opencontainers.image.description="COSMIC Community Utilities (Sidecar Sysext and .deb Package)"
 LABEL org.opencontainers.image.description="COSMIC Community Utilities (Sidecar Sysext and .deb Package)"
 LABEL org.opencontainers.image.licenses="GPL-3.0"
 

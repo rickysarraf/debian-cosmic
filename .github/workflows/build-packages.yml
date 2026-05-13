@@ -2,7 +2,7 @@ name: Debian COSMIC - Build Packages
 
 on:
   push:
-    branches: [ "main" ]
+    branches: [ "main", "wip/*" ]
   pull_request:
     branches: [ "main" ]
   schedule:
@@ -36,6 +36,7 @@ jobs:
     permissions:
       contents: read
       packages: write
+      actions: write
 
     steps:
       - name: Checkout repository
@@ -69,10 +70,11 @@ jobs:
           tags: |
             ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/${{ matrix.image }}:latest
             ${{ matrix.image }}:local
-          no-cache: true
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
 
       - name: Push ${{ matrix.name }} to registry
-        if: github.event_name != 'pull_request'
+        if: github.event_name != 'pull_request' && !startsWith(github.ref, 'refs/heads/wip/')
         run: docker push ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/${{ matrix.image }}:latest
 
       - name: Extract .deb artifact
@@ -92,7 +94,7 @@ jobs:
 
   release:
     needs: build-and-push
-    if: github.event_name != 'pull_request'
+    if: github.event_name != 'pull_request' && !startsWith(github.ref, 'refs/heads/wip/')
     runs-on: ubuntu-latest
     env:
       GPG_PRIVATE_KEY: ${{ secrets.GPG_PRIVATE_KEY }}

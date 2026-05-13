@@ -1,9 +1,10 @@
+# syntax=docker/dockerfile:1
 # Stage 1: Builder
 FROM debian:testing AS builder
 
 ENV DEBIAN_FRONTEND=noninteractive
 
-# 1. Add stable build dependencies (No sccache)
+# 1. Add stable build dependencies
 RUN apt-get update && apt-get install -y \
     build-essential git just cargo rustc pkg-config \
     libpipewire-0.3-dev libspa-0.2-dev libwayland-dev libxkbcommon-dev \
@@ -20,7 +21,9 @@ RUN apt-get update && apt-get install -y \
 
 WORKDIR /build
 
-# 2. Memory Safety (ThinLTO is mandatory for GitHub's 7GB RAM)
+# 2. Rust/Cargo Caching Configuration
+ENV CARGO_HOME=/usr/local/cargo
+ENV PATH=$CARGO_HOME/bin:$PATH
 ENV CARGO_PROFILE_RELEASE_LTO=thin
 ENV CARGO_PROFILE_RELEASE_CODEGEN_UNITS=16
 ENV CARGO_PROFILE_RELEASE_PANIC=abort
@@ -30,8 +33,15 @@ ENV LIBCLANG_PATH=/usr/lib/llvm-21/lib
 RUN git config --global --add safe.directory /build && \
     git clone --recursive --branch epoch-1.0.13 https://github.com/pop-os/cosmic-epoch.git .
 
-# 3. Build and install FULL stack
-RUN mkdir -p /export/usr && \
+# 3. Build and install FULL stack with BuildKit caching
+# We cache:
+# - Cargo registry (downloaded crates)
+# - Cargo git (git dependencies)
+# - Target directory (compiled objects)
+RUN --mount=type=cache,target=/usr/local/cargo/registry \
+    --mount=type=cache,target=/usr/local/cargo/git \
+    --mount=type=cache,target=/build/target \
+    mkdir -p /export/usr && \
     just install /export /usr
 
 # 4. SANitization: Remove fundamental system binaries to protect host integrity
