@@ -60,18 +60,25 @@ jobs:
           # Update placeholders in control file
           sed -i "s/@VERSION@/$BUILD_VERSION/g" ${{ matrix.context }}/packaging/debian/control
 
-      - name: Build and push ${{ matrix.name }}
+      - name: Build ${{ matrix.name }}
         uses: docker/build-push-action@v5
         with:
           context: ${{ matrix.context }}
-          push: ${{ github.event_name != 'pull_request' }}
-          tags: ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/${{ matrix.image }}:latest
+          push: false
+          load: true
+          tags: |
+            ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/${{ matrix.image }}:latest
+            ${{ matrix.image }}:local
           no-cache: true
+
+      - name: Push ${{ matrix.name }} to registry
+        if: github.event_name != 'pull_request'
+        run: docker push ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/${{ matrix.image }}:latest
 
       - name: Extract .deb artifact
         run: |
           mkdir -p dist
-          docker run --rm -v $(pwd)/dist:/dist ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/${{ matrix.image }}:latest sh -c "cp /*.deb /dist/"
+          docker run --rm -v $(pwd)/dist:/dist ${{ matrix.image }}:local sh -c "cp /*.deb /dist/"
 
       - name: Test Package Installation
         run: |
