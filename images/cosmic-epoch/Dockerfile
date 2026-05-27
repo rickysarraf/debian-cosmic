@@ -31,7 +31,7 @@ ENV LIBCLANG_PATH=/usr/lib/llvm-21/lib
 
 # Mark the directory as safe for git
 RUN git config --global --add safe.directory /build && \
-    git clone --recursive --branch epoch-1.0.13 https://github.com/pop-os/cosmic-epoch.git .
+    git clone --recursive --branch epoch-1.0.14 https://github.com/pop-os/cosmic-epoch.git .
 
 # 3. Build and install FULL stack with BuildKit caching
 # We cache:
