@@ -1,3 +1,20 @@
+cosmic-epoch-monorepo (1.0.15-1) unstable; urgency=low
+
+  * New upstream release: Cosmic Epoch 1.0.15.
+    - cosmic-comp: Support multiple fullscreen windows per workspace (fixes
+      Steam Big Picture).
+    - cosmic-comp: Implement pointer constraints protocol for better gaming
+      cursor behavior.
+    - Applets: Fixed tray icons for apps like Dropbox.
+    - Applets: Resolved Bluetooth "off" reporting bug.
+    - Applets: Fixed panic in battery applet.
+    - Terminal: New option to open windows in current directory.
+    - Terminal: Increased default scroll history to 100,000 lines.
+    - Store: Added local RPM package support.
+    - Player: Added playback speed configuration.
+
+ -- Ritesh Raj Sarraf <rrs@debian.org>  Thu, 04 Jun 2026 10:26:00 +0530
+
 cosmic-epoch-monorepo (1.0.14-1) unstable; urgency=low
 
   * New upstream release: Cosmic Epoch 1.0.14.
