@@ -33,12 +33,6 @@ ENV LIBCLANG_PATH=/usr/lib/llvm-21/lib
 RUN git config --global --add safe.directory /build && \
     git clone --recursive --branch epoch-1.0.15 https://github.com/pop-os/cosmic-epoch.git .
 
-# TODO: Remove once rustc 1.95 is available in Debian Testing.
-RUN find . -name Cargo.toml -type f -exec sed -i 's/rust-version = "1\.95"/rust-version = "1.94"/g' {} + && \
-    if [ -f rust-toolchain.toml ]; then \
-      sed -i 's/channel = "1\.95\(\.0\)\?"/channel = "1.94.0"/g' rust-toolchain.toml; \
-    fi
-
 # 3. Build and install FULL stack with BuildKit caching
 # We cache:
 # - Cargo registry (downloaded crates)
