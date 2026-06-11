@@ -1,3 +1,9 @@
+cosmic-epoch-monorepo (1.0.16-1) unstable; urgency=low
+
+  * New upstream release: Cosmic Epoch 1.0.16.
+
+ -- Ritesh Raj Sarraf <rrs@debian.org>  Thu, 11 Jun 2026 13:59:28 +0530
+
 cosmic-epoch-monorepo (1.0.15-1) unstable; urgency=low
 
   * New upstream release: Cosmic Epoch 1.0.15.
