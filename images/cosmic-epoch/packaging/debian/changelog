@@ -1,3 +1,22 @@
+cosmic-epoch-monorepo (1.1.0-1) unstable; urgency=low
+
+  * New upstream release: Cosmic Epoch 1.1.0.
+    - Added cosmic-monitor to standard releases.
+    - cosmic-applets: Use settings-daemon varlink API for sound, fix stuttering.
+    - cosmic-bg: Enable recursive scanning for wallpaper directories.
+    - cosmic-comp: Add tiling exceptions, pointer-warp-v1 support, optimize long
+      sessions, and fix various panics.
+    - cosmic-edit: Associate with application/x-zerosize MIME type.
+    - cosmic-files: Improve MIME handling, keyboard navigation, and sort icons.
+    - cosmic-osd: Connect Pipewire volumes through settings-daemon varlink API.
+    - cosmic-panel: Fix fractional scaling edge expansion and overflow flicker.
+    - cosmic-settings: Handle OpenVPN import URLs and default apps MIME types.
+    - cosmic-settings-daemon: Add audio varlink API, support SIGHUP restart.
+    - cosmic-term: Optimize theme loading in menu bar rendering.
+    - xdg-desktop-portal-cosmic: Improve screencast output arrangement.
+
+ -- Ritesh Raj Sarraf <rrs@debian.org>  Wed, 24 Jun 2026 09:20:00 +0000
+
 cosmic-epoch-monorepo (1.0.16-1) unstable; urgency=low
 
   * New upstream release: Cosmic Epoch 1.0.16.
