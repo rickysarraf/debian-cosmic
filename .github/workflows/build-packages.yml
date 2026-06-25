@@ -70,8 +70,8 @@ jobs:
           tags: |
             ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/${{ matrix.image }}:latest
             ${{ matrix.image }}:local
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          cache-from: type=gha,scope=${{ matrix.image }}
+          cache-to: type=gha,scope=${{ matrix.image }},mode=max
 
       - name: Push ${{ matrix.name }} to registry
         if: github.event_name != 'pull_request' && !startsWith(github.ref, 'refs/heads/wip/')
