@@ -29,9 +29,6 @@ jobs:
           - name: cosmic-epoch
             context: images/cosmic-epoch
             image: debian-cosmic-epoch
-          - name: cosmic-utils
-            context: images/cosmic-utils
-            image: debian-cosmic-utils
 
     permissions:
       contents: read
@@ -123,7 +120,6 @@ jobs:
             
             ### 🏗️ Artifacts
             - **Images:** `ghcr.io/${{ github.repository_owner }}/debian-cosmic-epoch:latest`
-            - **Images:** `ghcr.io/${{ github.repository_owner }}/debian-cosmic-utils:latest`
             
             Download the `.deb` files below for traditional installation.
           files: dist/*.deb

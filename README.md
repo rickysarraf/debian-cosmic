@@ -15,7 +15,6 @@ We provide two primary delivery formats to cater to different user needs:
 ### 1. Monorepo .deb Packages
 Unified Debian packages for traditional installation.
 - **`cosmic-epoch-monorepo`**: The full Core DE stack (Compositor, Panel, Settings, etc.).
-- **`cosmic-utils-monorepo`**: The community utilities stack (Tweaks, Vigil, Chronos, etc.).
 
 Packages are automatically versioned (e.g., `1.0.11-1.build42`) and promoted to [GitHub Releases](https://github.com/rickysarraf/debian-cosmic/releases).
 
@@ -59,13 +58,13 @@ echo "deb [signed-by=/etc/apt/keyrings/debian-cosmic.gpg] https://rickysarraf.gi
 
 # 3. Update and install
 sudo apt update
-sudo apt install cosmic-epoch-monorepo cosmic-utils-monorepo
+sudo apt install cosmic-epoch-monorepo
 ```
 
 #### Option 2: Direct .deb Download
 Download the `.deb` files directly from our [Releases](https://github.com/rickysarraf/debian-cosmic/releases) page and install them manually:
 ```bash
-sudo apt install ./cosmic-epoch-monorepo*.deb ./cosmic-utils-monorepo*.deb
+sudo apt install ./cosmic-epoch-monorepo*.deb
 ```
 
 #### Option 3: System Extension (`sysext`)
