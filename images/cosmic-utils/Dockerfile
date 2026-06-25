@@ -24,7 +24,7 @@ RUN apt-get update && apt-get install -y \
     libpoppler-glib-dev \
     && rm -rf /var/lib/apt/lists/*
 
-# Cargo caching for CI
+# Cargo build configuration
 ENV CARGO_HOME=/usr/local/cargo
 ENV PATH=$CARGO_HOME/bin:$PATH
 ENV CARGO_TARGET_DIR=/build/target
