@@ -1,3 +1,22 @@
+cosmic-epoch-monorepo (1.2.0-1) unstable; urgency=low
+
+  * New upstream release: Cosmic Epoch 1.2.0.
+    - Translation updates and dependency updates for many projects.
+    - cosmic-applets: Fix VPN password prompts, use spinners for connection.
+    - cosmic-bg: Enable AVIF support.
+    - cosmic-comp: Fix overview flicker, add new Intel GPU quirks.
+    - cosmic-edit: Fix character rendering bugs, track recents on save.
+    - cosmic-files: Fix archive extraction crash, show checksum panel.
+    - cosmic-launcher: Fix flickering when launcher opens.
+    - cosmic-monitor: Fix app icons, support horizontal scrolling.
+    - cosmic-settings: Key name translations, super key action renaming.
+    - cosmic-settings-daemon: Retry pipewire connection on failure.
+    - cosmic-store: Add animated loading indicators to explore/category.
+    - cosmic-term: Report focus events, report effective OSC 11 background.
+    - xdg-desktop-portal-cosmic: Migrate from make to just, honor libexecdir.
+
+ -- Ritesh Raj Sarraf <rrs@debian.org>  Wed, 01 Jul 2026 10:35:00 +0000
+
 cosmic-epoch-monorepo (1.1.0-1) unstable; urgency=low
 
   * New upstream release: Cosmic Epoch 1.1.0.

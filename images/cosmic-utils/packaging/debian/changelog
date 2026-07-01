@@ -1,3 +1,9 @@
+cosmic-utils-monorepo (1.2.0-1) unstable; urgency=low
+
+  * Synchronized with COSMIC Epoch 1.2.0.
+
+ -- Ritesh Raj Sarraf <rrs@debian.org>  Wed, 01 Jul 2026 10:35:00 +0000
+
 cosmic-utils-monorepo (1.1.0-1) unstable; urgency=low
 
   * Synchronized with COSMIC Epoch 1.1.0.
