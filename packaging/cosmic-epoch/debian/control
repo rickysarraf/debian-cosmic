@@ -2,7 +2,8 @@ Source: cosmic-epoch-monorepo
 Section: x11
 Priority: optional
 Maintainer: Ritesh Raj Sarraf <rrs@debian.org>
-Build-Depends: debhelper-compat (= 13)
+Build-Depends: debhelper-compat (= 13),
+               libdav1d-dev
 Standards-Version: 4.6.2
 Homepage: https://github.com/pop-os/cosmic-epoch
 

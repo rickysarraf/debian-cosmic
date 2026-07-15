@@ -14,7 +14,7 @@ RUN apt-get update && apt-get install -y \
     libjson-glib-dev libpulse-dev libasound2-dev libssl-dev \
     libflatpak-dev libarchive-dev libgstreamer1.0-dev \
     libgstreamer-plugins-base1.0-dev clang llvm-dev cmake \
-    libpixman-1-dev libwayland-bin libdisplay-info-dev libxcb-xinput-dev \
+    libpixman-1-dev libwayland-bin libdisplay-info-dev libxcb-xinput-dev libdav1d-dev \
     wayland-protocols extra-cmake-modules scdoc sed make libclang-dev \
     gtk-update-icon-cache hicolor-icon-theme bsdextrautils \
     && rm -rf /var/lib/apt/lists/*
