@@ -94,6 +94,7 @@ jobs:
     if: github.event_name != 'pull_request' && !startsWith(github.ref, 'refs/heads/wip/')
     runs-on: ubuntu-latest
     env:
+      BASE_VERSION: ${{ env.BASE_VERSION }}
       GPG_PRIVATE_KEY: ${{ secrets.GPG_PRIVATE_KEY }}
     permissions:
       contents: write
@@ -111,11 +112,13 @@ jobs:
 
       - name: Normalize .deb filenames with package version
         run: |
+          shopt -s nullglob
           for deb in dist/*.deb; do
             pkg="$(dpkg-deb -f "$deb" Package)"
             ver="$(dpkg-deb -f "$deb" Version | tr ':' '_')"
             arch="$(dpkg-deb -f "$deb" Architecture)"
-            mv "$deb" "dist/${pkg}_${ver}_${arch}.deb"
+            target="dist/${pkg}_${ver}_${arch}.deb"
+            [ "$deb" = "$target" ] || mv "$deb" "$target"
           done
 
       - name: Create GitHub Release
