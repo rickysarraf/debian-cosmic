@@ -109,11 +109,20 @@ jobs:
           path: dist/
           merge-multiple: true
 
+      - name: Normalize .deb filenames with package version
+        run: |
+          for deb in dist/*.deb; do
+            pkg="$(dpkg-deb -f "$deb" Package)"
+            ver="$(dpkg-deb -f "$deb" Version | tr ':' '_')"
+            arch="$(dpkg-deb -f "$deb" Architecture)"
+            mv "$deb" "dist/${pkg}_${ver}_${arch}.deb"
+          done
+
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: rolling-${{ github.sha }}
-          name: COSMIC Rolling Release (${{ github.run_id }})
+          name: COSMIC Rolling Release (${{ env.BASE_VERSION }}.build${{ github.run_number }})
           body: |
             ## 🌌 COSMIC Rolling Release
             Automatically generated build for Debian Testing/Sid.
