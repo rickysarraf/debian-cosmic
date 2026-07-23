@@ -94,7 +94,6 @@ jobs:
     if: github.event_name != 'pull_request' && !startsWith(github.ref, 'refs/heads/wip/')
     runs-on: ubuntu-latest
     env:
-      BASE_VERSION: ${{ env.BASE_VERSION }}
       GPG_PRIVATE_KEY: ${{ secrets.GPG_PRIVATE_KEY }}
     permissions:
       contents: write
@@ -121,11 +120,22 @@ jobs:
             [ "$deb" = "$target" ] || mv "$deb" "$target"
           done
 
+      - name: Read package version for release metadata
+        id: release_meta
+        run: |
+          shopt -s nullglob
+          debs=(dist/*.deb)
+          if [ ${#debs[@]} -eq 0 ]; then
+            echo "release_version=unknown" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          echo "release_version=$(dpkg-deb -f "${debs[0]}" Version)" >> "$GITHUB_OUTPUT"
+
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: rolling-${{ github.sha }}
-          name: COSMIC Rolling Release (${{ env.BASE_VERSION }}.build${{ github.run_number }})
+          name: COSMIC Rolling Release (${{ steps.release_meta.outputs.release_version }})
           body: |
             ## 🌌 COSMIC Rolling Release
             Automatically generated build for Debian Testing/Sid.
