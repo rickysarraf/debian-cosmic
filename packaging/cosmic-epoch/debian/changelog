@@ -1,3 +1,47 @@
+cosmic-epoch-monorepo (1.4.0-1) unstable; urgency=low
+
+  * New upstream release: Cosmic Epoch 1.4.0.
+    - Add cosmic-sound-theme for packaging (replaces pop-os/gtk-theme)
+    - Translation and dependency updates for many projects
+    - cosmic-applets:
+      - NetworkManager secret agent re-registration on restart
+    - cosmic-comp:
+      - Remove attempts to force redraw
+      - Fix frozen/detached active window hint
+      - Fix input to cropped tiled windows
+      - Notify readiness on non-systemd systems
+      - Fix kiosk command with command line options
+      - Migrate from unmaintained vector math library
+      - Fix feature gate for logind
+      - Fix flicker when switching menus in tiled apps
+      - Fix fullscreen issues with some games
+      - Improve edge pointer accuracy with fractional scaling
+      - Release active popup grabs on toplevel destruction
+      - Fix fractional scaling border width discrepancy
+    - cosmic-files:
+      - Fall back to GIO on MTP copy failures
+      - Fix trash directory detection
+    - cosmic-launcher:
+      - Reset results on search query changes
+    - cosmic-monitor:
+      - Implement application quit and force quit
+      - Graph type switching, design updates, and GPU freq collection
+    - cosmic-panel:
+      - Fix crash by setting minimum size for anchor rect
+      - Fix crash when changing output scale
+    - cosmic-settings:
+      - Preserve content when rebuilding appearance drawer
+      - Fix source volume changes applying to sink
+    - cosmic-settings-daemon:
+      - Add volume step configuration
+    - cosmic-workspaces:
+      - Clean up blur rectangles when toplevel is closed
+    - xdg-desktop-portal-cosmic:
+      - Run as system service, use tracing/journald
+      - Terminate if Wayland thread crashes
+
+ -- Ritesh Raj Sarraf <rrs@debian.org>  Thu, 23 Jul 2026 05:32:25 +0000
+
 cosmic-epoch-monorepo (1.3.0-1) unstable; urgency=low
 
   * New upstream release: Cosmic Epoch 1.3.0.

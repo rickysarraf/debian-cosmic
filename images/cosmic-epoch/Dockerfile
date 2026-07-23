@@ -31,7 +31,7 @@ ENV LIBCLANG_PATH=/usr/lib/llvm-21/lib
 
 # Mark the directory as safe for git
 RUN git config --global --add safe.directory /build && \
-    git clone --recursive --branch epoch-1.3.0 https://github.com/pop-os/cosmic-epoch.git . && \
+    git clone --recursive --branch epoch-1.4.0 https://github.com/pop-os/cosmic-epoch.git . && \
     # Patch: xdg-desktop-portal-cosmic dropped its Makefile in epoch-1.2.0 and migrated to justfile.
     # The upstream cosmic-epoch justfile still calls `make -C xdg-desktop-portal-cosmic`, so we
     # replace those calls with the equivalent `just` invocations.

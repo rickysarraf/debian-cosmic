@@ -1,4 +1,4 @@
-VERSION := "1.3.0-1~local1"
+VERSION := "1.4.0-1~local1"
 
 # Build all COSMIC monorepo .deb packages
 package-debs:
