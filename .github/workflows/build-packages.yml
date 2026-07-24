@@ -49,7 +49,9 @@ jobs:
           sudo rm -rf /usr/share/dotnet
           sudo rm -rf /opt/ghc
           sudo rm -rf /opt/hostedtoolcache
-          docker system prune -af || true
+          if docker info > /dev/null 2>&1; then
+            docker system prune -af
+          fi
           echo "Disk usage after cleanup:"
           df -h
 
