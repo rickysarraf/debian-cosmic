@@ -79,27 +79,27 @@ When using the `systemd-sysext` delivery format (Modular Sidecar overlays), upda
 To prevent this, we use the **JIT Canary** package (`cosmic-canary`). The canary is a custom Debian package built dynamically to match the exact ABI dependencies of the compiled COSMIC stack.
 
 ### Tiered Dependency Model
-The Canary uses a tiered logic model that defaults to strict version pinning and only relaxes a small allowlist of stable host libraries:
+The Canary uses a conservative dependency model that defaults to strict version pinning and only relaxes a small allowlist of stable host libraries:
 - **Strict Zone (`=` dependency):** Applied to every detected dependency unless it is explicitly classified as relaxed.
-- **Relaxed Zone (`>=` dependency):** Limited to stable system layers and protocol libraries (`libc6`, `libgcc-s1`, `libstdc++6`, `libwayland*`, `libdbus*`, `libpam*`, `libglib*`, `libasound*`, `libssl*`, `libx11*`).
+- **Relaxed Zone (`>=` dependency):** Limited to the allowlist of stable system layers and protocol libraries (`libc6`, `libgcc-s1`, `libstdc++6`, `libwayland*`, `libdbus*`, `libpam*`, `libglib*`, `libasound*`, `libssl*`, `libx11*`).
 
 ### Generating the Canary Package
-If you compile locally or want to regenerate the Canary for a staged COSMIC `/usr` tree (e.g. extracted from a sysext image or `/var/lib/extensions/<bucket>/usr`):
+The script expects a staged COSMIC `/usr` tree that already contains the built ELF binaries and shared libraries you want to scan. In the normal sysext workflow, that is the staged tree at `/var/lib/extensions/cosmic/usr`.
 
-1. **Generate the control file:**
+1. **Generate the control file and build the `.deb` package in one step:**
    ```bash
-   ./bin/generate-cosmic-canary.sh /path/to/staged/usr
+   ./bin/generate-cosmic-canary.sh /var/lib/extensions/cosmic/usr
    ```
-   This yields a `cosmic-canary.control` configuration file.
-   
-2. **Build the `.deb` package:**
-   ```bash
-   equivs-build cosmic-canary.control
-   ```
+   By default, this writes `cosmic-canary.control`, runs `equivs-build`, and leaves the resulting `cosmic-canary_*.deb` artifact in the current working directory. If you omit the path, the script defaults to `/var/lib/extensions/cosmic/usr`.
 
-3. **Install on the host system:**
+2. **Install on the host system:**
    ```bash
    sudo apt install ./cosmic-canary_*.deb
+   ```
+
+3. **Advanced/manual workflow:** If you only want the generated control file and plan to run `equivs-build` yourself later, use:
+   ```bash
+   ./bin/generate-cosmic-canary.sh --control-only /var/lib/extensions/cosmic/usr
    ```
 
 Once installed, standard `apt upgrade` updates that violate strict graphics stack versions will be blocked, alerting you that the COSMIC system extension needs to be rebuilt.
