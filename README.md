@@ -68,7 +68,36 @@ sudo apt install ./cosmic-epoch-monorepo*.deb
 ```
 
 #### Option 3: System Extension (`sysext`)
-For detailed instructions on using the `sysext` approach with `cosmic-toggle` and `cosmic-update`, see the `bin/` directory documentation.
+Run COSMIC without touching your host's `/usr`. This method uses `systemd-sysext` to overlay the COSMIC binaries on demand.
+
+**Prerequisites:** Docker (or Podman) must be installed.
+
+```bash
+# 1. Clone this repository (or download the bin/ scripts)
+git clone https://github.com/rickysarraf/debian-cosmic.git
+cd debian-cosmic
+
+# 2. Download the COSMIC sysext image from GHCR and install it
+#    to /var/lib/extensions/cosmic  (requires Docker and sudo)
+sudo bin/cosmic-update
+
+# 3. Activate COSMIC (merges the extension into /usr)
+sudo bin/cosmic-toggle on
+
+# 4. Restart your display manager or log out and back in
+sudo systemctl restart gdm   # or lightdm / sddm as appropriate
+
+# To deactivate COSMIC and restore the pristine host
+sudo bin/cosmic-toggle off
+
+# To update to the latest weekly build
+sudo bin/cosmic-update && sudo bin/cosmic-toggle on
+```
+
+To also install the community utilities extension (`cosmic-utils`):
+```bash
+sudo bin/cosmic-update utils
+```
 
 ---
 

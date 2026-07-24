@@ -3,32 +3,37 @@
 # Part of the Debian-COSMIC / Desktop Brewery Project
 
 SET_STATE=$1
-CANARY_PKG="cosmic-canary"
+EXT_ROOT="/var/lib/extensions"
+CORE_EXT="$EXT_ROOT/cosmic"
 
 usage() {
     echo "Usage: cosmic-toggle [on|off|status]"
     exit 1
 }
 
-check_canary() {
-    echo "🔍 Checking JIT Canary status..."
-    if ! dpkg -l "$CANARY_PKG" >/dev/null 2>&1; then
-        echo "❌ Error: $CANARY_PKG is not installed. Please install it to ensure ABI safety."
+check_extensions() {
+    echo "🔍 Checking COSMIC extension status..."
+
+    # Verify the core sysext has been downloaded
+    if [ ! -d "$CORE_EXT" ]; then
+        echo "❌ Error: COSMIC sysext extension not found at $CORE_EXT"
+        echo "   Run 'cosmic-update' first to download and install the COSMIC extension."
         exit 1
     fi
-    
-    # Check for broken dependencies (ABI drift)
+
+    # Check for broken host dependencies (ABI drift indicator)
     if ! sudo apt-get check >/dev/null 2>&1; then
-        echo "⚠️  Warning: System has unmet dependencies. ABI drift detected!"
-        echo "Run 'sudo apt-get -f install' to see the conflict. You may need to rebuild COSMIC."
+        echo "⚠️  Warning: System has unmet dependencies. Possible ABI drift detected!"
+        echo "   Run 'sudo apt-get -f install' to see the conflict. You may need to run 'cosmic-update'."
         exit 1
     fi
-    echo "✅ Canary is healthy."
+
+    echo "✅ Extension check passed."
 }
 
 case "$SET_STATE" in
     on)
-        check_canary
+        check_extensions
         echo "🚀 Merging COSMIC extension..."
         sudo systemd-sysext merge
         echo "✅ COSMIC is now active. Please restart GDM or log out manually."
