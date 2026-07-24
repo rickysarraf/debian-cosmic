@@ -21,7 +21,7 @@ RUN apt-get update && apt-get install -y \
 
 WORKDIR /build
 
-# 2. Rust/Cargo Caching Configuration
+# 2. Rust/Cargo build configuration
 ENV CARGO_HOME=/usr/local/cargo
 ENV PATH=$CARGO_HOME/bin:$PATH
 ENV CARGO_PROFILE_RELEASE_LTO=thin
@@ -40,15 +40,8 @@ RUN git config --global --add safe.directory /build && \
         -e 's|{{ make }} -C xdg-desktop-portal-cosmic install DESTDIR={{rootdir}} prefix={{prefix}}|{{ just }} rootdir={{rootdir}} prefix={{prefix}} xdg-desktop-portal-cosmic/install|g' \
         justfile
 
-# 3. Build and install FULL stack with BuildKit caching
-# We cache:
-# - Cargo registry (downloaded crates)
-# - Cargo git (git dependencies)
-# - Target directory (compiled objects)
-RUN --mount=type=cache,target=/usr/local/cargo/registry \
-    --mount=type=cache,target=/usr/local/cargo/git \
-    --mount=type=cache,target=/build/target \
-    mkdir -p /export/usr && \
+# 3. Build and install FULL stack
+RUN mkdir -p /export/usr && \
     just install /export /usr
 
 # 4. SANitization: Remove fundamental system binaries to protect host integrity
