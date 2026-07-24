@@ -84,11 +84,11 @@ The Canary uses a tiered logic model that defaults to strict version pinning and
 - **Relaxed Zone (`>=` dependency):** Limited to stable system layers and protocol libraries (`libc6`, `libgcc-s1`, `libstdc++6`, `libwayland*`, `libdbus*`, `libpam*`, `libglib*`, `libasound*`, `libssl*`, `libx11*`).
 
 ### Generating the Canary Package
-If you compile locally or want to regenerate the Canary for your staging directory:
+If you compile locally or want to regenerate the Canary for a staged COSMIC `/usr` tree (e.g. extracted from a sysext image or `/var/lib/extensions/<bucket>/usr`):
 
 1. **Generate the control file:**
    ```bash
-   ./bin/generate-cosmic-canary.sh /path/to/cosmic-epoch-monorepo
+   ./bin/generate-cosmic-canary.sh /path/to/staged/usr
    ```
    This yields a `cosmic-canary.control` configuration file.
    
