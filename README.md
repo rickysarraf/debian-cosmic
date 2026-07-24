@@ -79,9 +79,9 @@ When using the `systemd-sysext` delivery format (Modular Sidecar overlays), upda
 To prevent this, we use the **JIT Canary** package (`cosmic-canary`). The canary is a custom Debian package built dynamically to match the exact ABI dependencies of the compiled COSMIC stack.
 
 ### Tiered Dependency Model
-The Canary uses a tiered logic model to avoid blocking harmless host package updates while strictly guarding volatile ones:
-- **Strict Zone (`=` dependency):** Pinned to the exact version used at build time for volatile graphics and hardware components (`libmesa`, `libgbm`, `libdrm`, `libvulkan`, `libdisplay-info`, `libpixman`, `libxkbcommon`, `libinput`, `libpipewire`).
-- **Relaxed Zone (`>=` dependency):** Pinned to minimum required versions for stable system layers and protocol libraries (`libc6`, `libgcc`, `libstdc++`, `libwayland`, `libdbus`, `libpam`, `libglib`, `libasound`, `libssl`, `libx11`).
+The Canary uses a tiered logic model that defaults to strict version pinning and only relaxes a small allowlist of stable host libraries:
+- **Strict Zone (`=` dependency):** Applied to every detected dependency unless it is explicitly classified as relaxed.
+- **Relaxed Zone (`>=` dependency):** Limited to stable system layers and protocol libraries (`libc6`, `libgcc-s1`, `libstdc++6`, `libwayland*`, `libdbus*`, `libpam*`, `libglib*`, `libasound*`, `libssl*`, `libx11*`).
 
 ### Generating the Canary Package
 If you compile locally or want to regenerate the Canary for your staging directory:
