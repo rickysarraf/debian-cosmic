@@ -68,7 +68,25 @@ sudo apt install ./cosmic-epoch-monorepo*.deb
 ```
 
 #### Option 3: System Extension (`sysext`)
-For detailed instructions on using the `sysext` approach with `cosmic-toggle` and `cosmic-update`, see the `bin/` directory documentation.
+Run COSMIC as a `systemd-sysext` overlay — no changes to your host `/usr`.
+
+**Quick start:**
+```bash
+# 1. Pull the latest COSMIC images
+sudo bin/cosmic-update
+
+# 2. Build and install the ABI-safety canary
+./bin/generate-cosmic-canary.sh
+sudo apt install ./cosmic-canary_*.deb
+
+# 3. Activate COSMIC
+bin/cosmic-toggle on
+
+# 4. Restart the display manager
+sudo systemctl restart gdm
+```
+
+For the full setup guide, update workflow, ABI-safety details, and troubleshooting, see **[`bin/README.md`](bin/README.md)**.
 
 ---
 
