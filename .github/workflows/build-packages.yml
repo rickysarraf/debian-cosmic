@@ -68,7 +68,7 @@ jobs:
             ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/${{ matrix.image }}:latest
             ${{ matrix.image }}:local
           cache-from: type=gha
-          cache-to: type=gha,mode=max
+          cache-to: type=gha,mode=max,ignore-error=true
 
       - name: Push ${{ matrix.name }} to registry
         if: github.event_name != 'pull_request' && !startsWith(github.ref, 'refs/heads/wip/')
