@@ -72,6 +72,40 @@ For detailed instructions on using the `sysext` approach with `cosmic-toggle` an
 
 ---
 
+## 🛡️ ABI Safety: JIT Canary Package
+
+When using the `systemd-sysext` delivery format (Modular Sidecar overlays), updates to volatile host system libraries (such as the Mesa graphics drivers, Vulkan, DRM, etc.) can cause dynamic linker mismatch errors (such as black screens or segfaults).
+
+To prevent this, we use the **JIT Canary** package (`cosmic-canary`). The canary is a custom Debian package built dynamically to match the exact ABI dependencies of the compiled COSMIC stack.
+
+### Tiered Dependency Model
+The Canary uses a tiered logic model to avoid blocking harmless host package updates while strictly guarding volatile ones:
+- **Strict Zone (`=` dependency):** Pinned to the exact version used at build time for volatile graphics and hardware components (`libmesa`, `libgbm`, `libdrm`, `libvulkan`, `libdisplay-info`, `libpixman`, `libxkbcommon`, `libinput`, `libpipewire`).
+- **Relaxed Zone (`>=` dependency):** Pinned to minimum required versions for stable system layers and protocol libraries (`libc6`, `libgcc`, `libstdc++`, `libwayland`, `libdbus`, `libpam`, `libglib`, `libasound`, `libssl`, `libx11`).
+
+### Generating the Canary Package
+If you compile locally or want to regenerate the Canary for your staging directory:
+
+1. **Generate the control file:**
+   ```bash
+   ./bin/generate-cosmic-canary.sh /path/to/cosmic-epoch-monorepo
+   ```
+   This yields a `cosmic-canary.control` configuration file.
+   
+2. **Build the `.deb` package:**
+   ```bash
+   equivs-build cosmic-canary.control
+   ```
+
+3. **Install on the host system:**
+   ```bash
+   sudo apt install ./cosmic-canary_*.deb
+   ```
+
+Once installed, standard `apt upgrade` updates that violate strict graphics stack versions will be blocked, alerting you that the COSMIC system extension needs to be rebuilt.
+
+---
+
 ## 🤝 Contributing
 We use a **"Sanitized Host"** principle. All development and builds must occur in isolated environments (Docker or chroot) to prevent host contamination.
 
