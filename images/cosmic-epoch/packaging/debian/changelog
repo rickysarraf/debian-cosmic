@@ -1,3 +1,45 @@
+cosmic-epoch-monorepo (1.5.0-1) unstable; urgency=low
+
+  * New upstream release: Cosmic Epoch 1.5.0.
+    - Translation and dependency updates for many projects
+    - cosmic-bg:
+      - Use EXIF orientation
+    - cosmic-comp:
+      - Fix SIGABRT when kiosk child exits, and ignore EPERM/EACCES error on DRM cleanup
+      - Workaround for Chromium apps breaking below 1.0 scaling
+      - Fix dbus deadlock in a11y keyboard monitor
+      - Ensure X window focus on unmap/map
+      - Don't panic when renderer creation fails after a GPU reset
+      - Clamp pointer edge after applying the output offset
+      - Check LayerHookId for layer surfaces in corner_radius
+    - cosmic-greeter:
+      - Use cosmic-keymap-unstable-v1 wayland protocol
+    - cosmic-initial-setup:
+      - Fix list alignment
+    - cosmic-panel:
+      - Fix frosted glass for applets on hotplugged external monitor
+      - Fix flickering when using frosted glass when preserving style on window maximize
+      - Close popups on all outputs before adding a new one
+      - Fixes for touch input
+      - Fix high CPU usage when screen is locked
+    - cosmic-settings:
+      - Increase wallpaper limit from 100 to 500
+      - Use EXIF orientation for wallpaper
+      - Allow adding multiple wallpaper images at once
+      - Slider widget handle improvements
+      - Fix 1-pixel gap between display outputs due to rounding error
+      - Networking: stop storing VPN username as a secret
+    - cosmic-settings-daemon:
+      - Brightness: drop cached DDC handles when idle to fix hangs
+    - cosmic-store:
+      - Center text in places where container content is aligned to center
+    - cosmic-term:
+      - Configurable terminal pane borders
+    - xdg-desktop-portal-cosmic:
+      - Screencast: support metadata cursor capture
+
+ -- Ritesh Raj Sarraf <rrs@debian.org>  Thu, 30 Jul 2026 10:00:00 +0000
+
 cosmic-epoch-monorepo (1.4.0-1) unstable; urgency=low
 
   * New upstream release: Cosmic Epoch 1.4.0.

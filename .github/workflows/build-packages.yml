@@ -16,7 +16,7 @@ concurrency:
 env:
   REGISTRY: ghcr.io
   IMAGE_PREFIX: ${{ github.repository_owner }}
-  BASE_VERSION: "1.4.0-1"
+  BASE_VERSION: "1.5.0-1"
 
 jobs:
   build-and-push:

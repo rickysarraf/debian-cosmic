@@ -154,7 +154,7 @@ if $RAW_MODE; then
   exit 0
 fi
 
-VERSION=${CANARY_VERSION:-"1.4.0-jit-$(date +%Y%m%d)"}
+VERSION=${CANARY_VERSION:-"1.5.0-jit-$(date +%Y%m%d)"}
 
 cat <<EOF_CONTROL > "$CONTROL_FILE"
 Section: misc
