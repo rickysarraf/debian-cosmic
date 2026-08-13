@@ -38,7 +38,11 @@ RUN git config --global --add safe.directory /build && \
     sed -i \
         -e 's|{{ make }} -C xdg-desktop-portal-cosmic all|{{ just }} xdg-desktop-portal-cosmic/build|g' \
         -e 's|{{ make }} -C xdg-desktop-portal-cosmic install DESTDIR={{rootdir}} prefix={{prefix}}|{{ just }} rootdir={{rootdir}} prefix={{prefix}} xdg-desktop-portal-cosmic/install|g' \
-        justfile
+        justfile && \
+    # Patch: cosmic-notifications panic guard for Broken Pipe on stdio when Wayland/D-Bus disconnects
+    if [ -f cosmic-notifications/src/main.rs ]; then \
+        sed -i 's#fn main() -> anyhow::Result<()> {#fn main() -> anyhow::Result<()> {\n    unsafe { libc::signal(libc::SIGPIPE, libc::SIG_IGN); }\n    std::panic::set_hook(Box::new(|info| {\n        let msg = info.to_string();\n        if !msg.contains("Broken pipe") {\n            eprintln!("{}", info);\n        }\n    }));#g' cosmic-notifications/src/main.rs ; \
+    fi
 
 # 3. Build and install FULL stack
 RUN mkdir -p /export/usr && \
