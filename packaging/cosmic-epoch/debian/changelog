@@ -1,3 +1,11 @@
+cosmic-epoch-monorepo (1.5.0-2) unstable; urgency=medium
+
+  * Fix cosmic-notifications panic on stdout broken pipe upon Wayland/D-Bus
+    disconnection, preventing cascading crashes of cosmic-panel and applets.
+  * Add custom panic hook to suppress stdio BrokenPipe aborts in daemon services.
+
+ -- Ritesh Raj Sarraf <rrs@debian.org>  Thu, 13 Aug 2026 17:00:00 +0530
+
 cosmic-epoch-monorepo (1.5.0-1) unstable; urgency=low
 
   * New upstream release: Cosmic Epoch 1.5.0.
