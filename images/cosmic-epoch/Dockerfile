@@ -41,8 +41,8 @@ RUN git config --global --add safe.directory /build && \
         justfile && \
     # Patch: cosmic-notifications panic guard for Broken Pipe on stdio when Wayland/D-Bus disconnects
     if [ -f cosmic-notifications/src/main.rs ]; then \
-        sed -i 's#fn main() -> anyhow::Result<()> {#fn main() -> anyhow::Result<()> {\n    unsafe { libc::signal(libc::SIGPIPE, libc::SIG_IGN); }\n    std::panic::set_hook(Box::new(|info| {\n        let msg = info.to_string();\n        if !msg.contains("Broken pipe") {\n            eprintln!("{}", info);\n        }\n    }));#g' cosmic-notifications/src/main.rs ; \
-        sed -i '/^\[dependencies\]/a libc = "0.2"' cosmic-notifications/Cargo.toml ; \
+        sed -i 's#fn main() -> anyhow::Result<()> {#fn main() -> anyhow::Result<()> {\n    unsafe { libc::signal(libc::SIGPIPE, libc::SIG_IGN); }\n    std::panic::set_hook(Box::new(|info| {\n        let msg = info.to_string();\n        if !msg.contains("Broken pipe") {\n            eprintln!("{}", msg);\n        }\n    }));#g' cosmic-notifications/src/main.rs ; \
+        grep -q '^libc' cosmic-notifications/Cargo.toml || sed -i '0,/^\[dependencies\]/s//\[dependencies\]\nlibc = "0.2"/' cosmic-notifications/Cargo.toml ; \
     fi
 
 # 3. Build and install FULL stack
