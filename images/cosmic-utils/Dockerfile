@@ -18,7 +18,7 @@ RUN apt-get update && apt-get install -y \
     libxcb-shape0-dev libxcb-xfixes0-dev libvulkan-dev \
     libfprint-2-dev clang llvm-dev cmake \
     libpixman-1-dev libwayland-bin libdisplay-info-dev libxcb-xinput-dev \
-    wayland-protocols extra-cmake-modules scdoc sed make libclang-dev \
+    wayland-protocols extra-cmake-modules scdoc sed make libclang-dev jq \
     gtk-update-icon-cache hicolor-icon-theme bsdextrautils patch libcairo2-dev \
     libpoppler-glib-dev \
     && rm -rf /var/lib/apt/lists/*
