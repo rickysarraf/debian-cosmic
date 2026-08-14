@@ -1,0 +1,35 @@
+From: Debian COSMIC Maintainers <debian-cosmic@debian.org>
+Subject: [PATCH 2/2] cosmic-notifications: add SIGPIPE guard and libc dependency
+
+When Wayland or D-Bus disconnects, cosmic-notifications can receive a
+SIGPIPE on its stdio which causes a panic with an alarming backtrace.
+Ignore SIGPIPE at startup so these expected disconnections are handled
+gracefully, and suppress the "Broken pipe" noise from the panic hook.
+
+Also adds `libc = "0.2"` to Cargo.toml, required by the signal() call.
+--- a/cosmic-notifications/Cargo.toml
++++ b/cosmic-notifications/Cargo.toml
+@@ -17,6 +17,7 @@ libcosmic = { git = "https://github.com/pop-os/libcosmic", default-features = f
+ ] }
+ anyhow = "1.0"
+ color-backtrace = "0.7.2"
++libc = "0.2"
+ cosmic-notifications-util = { path = "./cosmic-notifications-util" }
+ cosmic-notifications-config = { path = "./cosmic-notifications-config" }
+ cosmic-panel-config = { git = "https://github.com/pop-os/cosmic-panel" }
+--- a/cosmic-notifications/src/main.rs
++++ b/cosmic-notifications/src/main.rs
+@@ -9,7 +9,15 @@ use crate::config::VERSION;
+ 
+ fn main() -> anyhow::Result<()> {
+-    color_backtrace::install();
++    // Ignore SIGPIPE so that Wayland/D-Bus disconnects don't cause a panic.
++    unsafe { libc::signal(libc::SIGPIPE, libc::SIG_IGN); }
++    std::panic::set_hook(Box::new(|info| {
++        let msg = info.to_string();
++        if !msg.contains("Broken pipe") {
++            eprintln!("{}", msg);
++        }
++    }));
++    color_backtrace::install();
+     let trace = tracing_subscriber::registry();

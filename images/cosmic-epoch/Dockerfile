@@ -29,21 +29,13 @@ ENV CARGO_PROFILE_RELEASE_CODEGEN_UNITS=16
 ENV CARGO_PROFILE_RELEASE_PANIC=abort
 ENV LIBCLANG_PATH=/usr/lib/llvm-21/lib
 
+COPY patches/ /patches/
+
 # Mark the directory as safe for git
 RUN git config --global --add safe.directory /build && \
     git clone --recursive --branch epoch-1.5.0 https://github.com/pop-os/cosmic-epoch.git . && \
-    # Patch: xdg-desktop-portal-cosmic dropped its Makefile in epoch-1.2.0 and migrated to justfile.
-    # The upstream cosmic-epoch justfile still calls `make -C xdg-desktop-portal-cosmic`, so we
-    # replace those calls with the equivalent `just` invocations.
-    sed -i \
-        -e 's|{{ make }} -C xdg-desktop-portal-cosmic all|{{ just }} xdg-desktop-portal-cosmic/build|g' \
-        -e 's|{{ make }} -C xdg-desktop-portal-cosmic install DESTDIR={{rootdir}} prefix={{prefix}}|{{ just }} rootdir={{rootdir}} prefix={{prefix}} xdg-desktop-portal-cosmic/install|g' \
-        justfile && \
-    # Patch: cosmic-notifications panic guard for Broken Pipe on stdio when Wayland/D-Bus disconnects
-    if [ -f cosmic-notifications/src/main.rs ]; then \
-        sed -i 's#fn main() -> anyhow::Result<()> {#fn main() -> anyhow::Result<()> {\n    unsafe { libc::signal(libc::SIGPIPE, libc::SIG_IGN); }\n    std::panic::set_hook(Box::new(|info| {\n        let msg = info.to_string();\n        if !msg.contains("Broken pipe") {\n            eprintln!("{}", msg);\n        }\n    }));#g' cosmic-notifications/src/main.rs ; \
-        grep -q '^libc' cosmic-notifications/Cargo.toml || sed -i '0,/^\[dependencies\]/s//\[dependencies\]\nlibc = "0.2"/' cosmic-notifications/Cargo.toml ; \
-    fi
+    patch -p1 < /patches/0001-justfile-use-just-for-xdg-desktop-portal-cosmic.patch && \
+    patch -p1 < /patches/0002-cosmic-notifications-sigpipe-guard-and-libc-dep.patch
 
 # 3. Build and install FULL stack
 RUN mkdir -p /export/usr && \
