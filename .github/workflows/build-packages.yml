@@ -22,6 +22,8 @@ jobs:
   changes:
     if: github.event.action != 'closed'
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     outputs:
       epoch: ${{ steps.filter.outputs.epoch }}
       utils: ${{ steps.filter.outputs.utils }}
