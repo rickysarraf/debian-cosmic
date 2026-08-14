@@ -31,81 +31,27 @@ ENV LIBCLANG_PATH=/usr/lib/llvm-21/lib
 WORKDIR /build
 RUN mkdir -p /export/usr
 
-# 2. Batch Clone and Build
-# cosmic-ext-tweaks
-RUN git clone --depth 1 https://github.com/cosmic-utils/tweaks.git cosmic-ext-tweaks && \
-    cd cosmic-ext-tweaks && just build-release && just rootdir=/export prefix=/usr install
+# 2. Clone and Build Curated COSMIC Applet Extensions
 
-# cosmic-ext-applet-external-monitor-brightness
-RUN git clone --depth 1 https://github.com/cosmic-utils/cosmic-ext-applet-external-monitor-brightness.git && \
-    cd cosmic-ext-applet-external-monitor-brightness && just build-release && just rootdir=/export prefix=/usr install
+# clippy-land (Clipboard manager applet)
+RUN git clone --depth 1 https://github.com/k33wee/clippy-land.git && \
+    cd clippy-land && just build-release && just prefix=/export/usr install
 
-# clipboard-manager (Corrected repo name)
-COPY dbus-toggle.patch /build/
-RUN git clone --depth 1 https://github.com/cosmic-utils/clipboard-manager.git && \
-    cd clipboard-manager && \
-    patch -p1 < ../dbus-toggle.patch && \
+# cosmic-ext-applet-dict (Dictionary applet, with localhost DICT server + IPC toggle fix)
+COPY patches/0001-cosmic-ext-applet-dict-localhost-backend-and-ipc-toggle.patch /tmp/
+RUN git clone --depth 1 https://github.com/cosmic-utils/cosmic-ext-applet-dict.git && \
+    cd cosmic-ext-applet-dict && \
+    patch -p1 < /tmp/0001-cosmic-ext-applet-dict-localhost-backend-and-ipc-toggle.patch && \
     just build-release && just rootdir=/export prefix=/usr install
 
-# cosmic-ext-applet-vigil (Keep-awake tool)
-RUN git clone --depth 1 https://github.com/cosmic-utils/cosmic-ext-applet-vigil.git && \
-    cd cosmic-ext-applet-vigil && just build-release && just rootdir=/export prefix=/usr install
+# cosmic-ext-connected (KDE Connect integration applet)
+RUN git clone --depth 1 https://github.com/nwxnw/cosmic-ext-connected.git && \
+    cd cosmic-ext-connected && just build-release && \
+    just rootdir=/export prefix=/usr BIN_DIR=/export/usr/bin APP_DIR=/export/usr/share/applications METAINFO_DIR=/export/usr/share/metainfo ICON_DIR=/export/usr/share/icons/hicolor/scalable/apps install
 
-# chronos (Pomodoro timer)
-RUN git clone --depth 1 https://github.com/cosmic-utils/chronos.git && \
-    cd chronos && just build-release && just rootdir=/export prefix=/usr install
-
-# calculator (Simple calculator)
-RUN git clone --depth 1 https://github.com/cosmic-utils/calculator.git && \
-    cd calculator && just build-release && just rootdir=/export prefix=/usr install
-
-# tasks (Task management application)
-RUN git clone --depth 1 https://github.com/cosmic-utils/tasks.git && \
-    cd tasks && just build-release && just rootdir=/export prefix=/usr install
-
-# app-hub (AppImage Manager)
-RUN git clone --depth 1 https://github.com/cosmic-utils/app-hub.git && \
-    cd app-hub && just build-release && just rootdir=/export prefix=/usr install
-
-# stellarshot (Backup application)
-RUN git clone --depth 1 https://github.com/cosmic-utils/stellarshot.git && \
-    cd stellarshot && just build-release && just rootdir=/export prefix=/usr install
-
-# forecast (Weather application)
-RUN git clone --depth 1 https://github.com/cosmic-utils/forecast.git && \
-    cd forecast && just build-release && just rootdir=/export prefix=/usr install
-
-# examine (System information viewer)
-RUN git clone --depth 1 https://github.com/cosmic-utils/examine.git && \
-    cd examine && just build-release && just rootdir=/export prefix=/usr install
-
-# camera (Camera application)
-RUN git clone --depth 1 https://github.com/cosmic-utils/camera.git && \
-    cd camera && just build-release && just rootdir=/export prefix=/usr install
-
-# cosmic-ext-applet-ollama (Ollama applet)
-RUN git clone --depth 1 https://github.com/cosmic-utils/cosmic-ext-applet-ollama.git && \
-    cd cosmic-ext-applet-ollama && just build-release && just rootdir=/export prefix=/usr install
-
-# minimon-applet (System monitor applet)
-RUN git clone --depth 1 https://github.com/cosmic-utils/minimon-applet.git && \
-    cd minimon-applet && just build-release && just rootdir=/export prefix=/usr install
-
-# weather-applet
-RUN git clone --depth 1 https://github.com/cosmic-utils/cosmic-ext-applet-weather.git && \
-    cd cosmic-ext-applet-weather && just build && just rootdir=/export prefix=/usr install
-
-# sysinfo-applet
-RUN git clone --depth 1 https://github.com/cosmic-utils/cosmic-ext-applet-sysinfo.git && \
-    cd cosmic-ext-applet-sysinfo && just build && just rootdir=/export prefix=/usr install
-
-# logomenu-applet
-RUN git clone --depth 1 https://github.com/cosmic-utils/cosmic-ext-applet-logomenu.git && \
-    cd cosmic-ext-applet-logomenu && just build-release && just rootdir=/export prefix=/usr install
-
-# noctua (Image viewer)
-RUN git clone --depth 1 https://github.com/cosmic-utils/noctua.git && \
-    cd noctua && just build-release && just rootdir=/export prefix=/usr install
+# cosmic-ext-applet-tempest (Tempest weather forecast applet)
+RUN git clone --depth 1 https://github.com/VintageTechie/cosmic-ext-applet-tempest.git && \
+    cd cosmic-ext-applet-tempest && just build-release && just rootdir=/export prefix=/usr install
 
 # 3. SANitization: Remove fundamental system binaries
 RUN rm -f /export/usr/bin/env /export/usr/bin/bash /export/usr/bin/sh /export/usr/bin/dash
