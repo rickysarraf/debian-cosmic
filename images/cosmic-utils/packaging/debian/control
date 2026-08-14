@@ -8,11 +8,12 @@ Homepage: https://github.com/rickysarraf/debian-cosmic
 Recommends: cosmic-epoch-monorepo (= @VERSION@)
 Built-Using: cosmic-epoch-monorepo (= @VERSION@)
 Description: Unified COSMIC Community Utilities
- This package provides a collection of community-developed utilities 
- and applets for the COSMIC Desktop Environment, including Tweaks, 
- Vigil, Chronos, Calculator, Tasks, AppHub, Stellarshot, Forecast, 
- Examine, Camera, Ollama, and various applets 
- like Minimon, Weather, SysInfo, LogoMenu, and Noctua.
+ This package provides a curated collection of community-developed
+ applets for the COSMIC Desktop Environment: a clipboard manager
+ (clippy-land), a Dictionary lookup applet (cosmic-ext-applet-dict,
+ backed by a localhost DICT server with an IPC toggle shortcut),
+ a KDE Connect integration applet (cosmic-ext-connected), and a
+ weather forecast applet (cosmic-ext-applet-tempest).
  .
  This package is strictly tied to the version of cosmic-epoch-monorepo 
  it was built against.

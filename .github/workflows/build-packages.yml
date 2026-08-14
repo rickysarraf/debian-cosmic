@@ -19,8 +19,38 @@ env:
   BASE_VERSION: "1.5.0-2"
 
 jobs:
-  build-and-push:
+  changes:
     if: github.event.action != 'closed'
+    runs-on: ubuntu-latest
+    outputs:
+      epoch: ${{ steps.filter.outputs.epoch }}
+      utils: ${{ steps.filter.outputs.utils }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Detect changed image contexts
+        id: filter
+        uses: dorny/paths-filter@v3
+        with:
+          filters: |
+            epoch:
+              - 'images/cosmic-epoch/**'
+            utils:
+              - 'images/cosmic-utils/**'
+
+  build-and-push:
+    needs: changes
+    # Always build on schedule/workflow_dispatch (rolling release); on
+    # push/pull_request only build the image(s) whose context changed, so a
+    # cosmic-utils-only change never forces the ~5h cosmic-epoch rebuild.
+    if: |
+      github.event.action != 'closed' && (
+        github.event_name == 'schedule' ||
+        github.event_name == 'workflow_dispatch' ||
+        (matrix.name == 'cosmic-epoch' && needs.changes.outputs.epoch == 'true') ||
+        (matrix.name == 'cosmic-utils' && needs.changes.outputs.utils == 'true')
+      )
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -29,6 +59,9 @@ jobs:
           - name: cosmic-epoch
             context: images/cosmic-epoch
             image: debian-cosmic-epoch
+          - name: cosmic-utils
+            context: images/cosmic-utils
+            image: debian-cosmic-utils
 
     permissions:
       contents: read
@@ -102,7 +135,11 @@ jobs:
 
   release:
     needs: build-and-push
-    if: github.event_name != 'pull_request' && !startsWith(github.ref, 'refs/heads/wip/')
+    # build-and-push may legitimately be skipped for one or both matrix legs
+    # (path-filtered runs); only fail release if a leg that *did* run failed.
+    if: |
+      always() && needs.build-and-push.result != 'failure' && needs.build-and-push.result != 'cancelled' &&
+      github.event_name != 'pull_request' && !startsWith(github.ref, 'refs/heads/wip/')
     runs-on: ubuntu-latest
     env:
       GPG_PRIVATE_KEY: ${{ secrets.GPG_PRIVATE_KEY }}
@@ -158,6 +195,7 @@ jobs:
             
             ### 🏗️ Artifacts
             - **Images:** `ghcr.io/${{ github.repository_owner }}/debian-cosmic-epoch:latest`
+            - **Images:** `ghcr.io/${{ github.repository_owner }}/debian-cosmic-utils:latest`
             
             Download the `.deb` files below for traditional installation.
           files: dist/*.deb
@@ -194,6 +232,7 @@ jobs:
 
   deploy-pages:
     needs: release
+    if: needs.release.result == 'success'
     runs-on: ubuntu-latest
     permissions:
       pages: write
