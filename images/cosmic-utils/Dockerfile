@@ -44,11 +44,6 @@ RUN git clone --depth 1 https://github.com/cosmic-utils/cosmic-ext-applet-dict.g
     patch -p1 < /tmp/0001-cosmic-ext-applet-dict-localhost-backend-and-ipc-toggle.patch && \
     just build-release && just rootdir=/export prefix=/usr install
 
-# cosmic-ext-connected (KDE Connect integration applet)
-RUN git clone --depth 1 https://github.com/nwxnw/cosmic-ext-connected.git && \
-    cd cosmic-ext-connected && just build-release && \
-    just rootdir=/export prefix=/usr BIN_DIR=/export/usr/bin APP_DIR=/export/usr/share/applications METAINFO_DIR=/export/usr/share/metainfo ICON_DIR=/export/usr/share/icons/hicolor/scalable/apps install
-
 # cosmic-ext-applet-tempest (Tempest weather forecast applet)
 RUN git clone --depth 1 https://github.com/VintageTechie/cosmic-ext-applet-tempest.git && \
     cd cosmic-ext-applet-tempest && just build-release && just rootdir=/export prefix=/usr install
