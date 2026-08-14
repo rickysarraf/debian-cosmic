@@ -19,7 +19,28 @@ env:
   BASE_VERSION: "1.5.0-2"
 
 jobs:
+  changes:
+    if: github.event.action != 'closed'
+    runs-on: ubuntu-latest
+    outputs:
+      epoch: ${{ steps.filter.outputs.epoch }}
+      utils: ${{ steps.filter.outputs.utils }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Detect changed image contexts
+        id: filter
+        uses: dorny/paths-filter@v3
+        with:
+          filters: |
+            epoch:
+              - 'images/cosmic-epoch/**'
+            utils:
+              - 'images/cosmic-utils/**'
+
   build-and-push:
+    needs: changes
     if: github.event.action != 'closed'
     runs-on: ubuntu-latest
     strategy:
@@ -29,19 +50,43 @@ jobs:
           - name: cosmic-epoch
             context: images/cosmic-epoch
             image: debian-cosmic-epoch
+          - name: cosmic-utils
+            context: images/cosmic-utils
+            image: debian-cosmic-utils
 
     permissions:
       contents: read
       packages: write
 
     steps:
+      # job-level `if:` cannot see the `matrix` context, so the per-leg
+      # gating (schedule/workflow_dispatch always build; push/pull_request
+      # only build the leg(s) whose context changed, so a cosmic-utils-only
+      # change never forces the ~5h cosmic-epoch rebuild) is done here as a
+      # step output, and every subsequent step is gated on it.
+      - name: Determine whether to build this matrix leg
+        id: gate
+        run: |
+          if [[ "${{ github.event_name }}" == "schedule" || "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            echo "should_build=true" >> "$GITHUB_OUTPUT"
+          elif [[ "${{ matrix.name }}" == "cosmic-epoch" && "${{ needs.changes.outputs.epoch }}" == "true" ]]; then
+            echo "should_build=true" >> "$GITHUB_OUTPUT"
+          elif [[ "${{ matrix.name }}" == "cosmic-utils" && "${{ needs.changes.outputs.utils }}" == "true" ]]; then
+            echo "should_build=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "should_build=false" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Checkout repository
+        if: steps.gate.outputs.should_build == 'true'
         uses: actions/checkout@v4
 
       - name: Set up Docker Buildx
+        if: steps.gate.outputs.should_build == 'true'
         uses: docker/setup-buildx-action@v3
 
       - name: Free disk space
+        if: steps.gate.outputs.should_build == 'true'
         run: |
           echo "Disk usage before cleanup:"
           df -h
@@ -56,6 +101,7 @@ jobs:
           df -h
 
       - name: Log in to the Container registry
+        if: steps.gate.outputs.should_build == 'true'
         uses: docker/login-action@v3
         with:
           registry: ${{ env.REGISTRY }}
@@ -63,6 +109,7 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Inject dynamic version into packaging
+        if: steps.gate.outputs.should_build == 'true'
         run: |
           BUILD_VERSION="${{ env.BASE_VERSION }}.build${{ github.run_number }}"
           echo "Injecting version: $BUILD_VERSION"
@@ -72,6 +119,7 @@ jobs:
           sed -i "s/@VERSION@/$BUILD_VERSION/g" ${{ matrix.context }}/packaging/debian/control
 
       - name: Build ${{ matrix.name }}
+        if: steps.gate.outputs.should_build == 'true'
         uses: docker/build-push-action@v5
         with:
           context: ${{ matrix.context }}
@@ -82,19 +130,22 @@ jobs:
             ${{ matrix.image }}:local
 
       - name: Push ${{ matrix.name }} to registry
-        if: github.event_name != 'pull_request' && !startsWith(github.ref, 'refs/heads/wip/')
+        if: steps.gate.outputs.should_build == 'true' && github.event_name != 'pull_request' && !startsWith(github.ref, 'refs/heads/wip/')
         run: docker push ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/${{ matrix.image }}:latest
 
       - name: Extract .deb artifact
+        if: steps.gate.outputs.should_build == 'true'
         run: |
           mkdir -p dist
           docker run --rm -v $(pwd)/dist:/dist ${{ matrix.image }}:local sh -c "cp /*.deb /dist/"
 
       - name: Test Package Installation
+        if: steps.gate.outputs.should_build == 'true'
         run: |
           docker run --rm -v $(pwd)/dist:/dist -e DEBIAN_FRONTEND=noninteractive debian:testing sh -c "apt-get update && apt-get install -y /dist/*.deb"
         
       - name: Upload .deb artifacts
+        if: steps.gate.outputs.should_build == 'true'
         uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.name }}-deb
@@ -102,7 +153,11 @@ jobs:
 
   release:
     needs: build-and-push
-    if: github.event_name != 'pull_request' && !startsWith(github.ref, 'refs/heads/wip/')
+    # build-and-push may legitimately be skipped for one or both matrix legs
+    # (path-filtered runs); only fail release if a leg that *did* run failed.
+    if: |
+      always() && needs.build-and-push.result != 'failure' && needs.build-and-push.result != 'cancelled' &&
+      github.event_name != 'pull_request' && !startsWith(github.ref, 'refs/heads/wip/')
     runs-on: ubuntu-latest
     env:
       GPG_PRIVATE_KEY: ${{ secrets.GPG_PRIVATE_KEY }}
@@ -158,6 +213,7 @@ jobs:
             
             ### 🏗️ Artifacts
             - **Images:** `ghcr.io/${{ github.repository_owner }}/debian-cosmic-epoch:latest`
+            - **Images:** `ghcr.io/${{ github.repository_owner }}/debian-cosmic-utils:latest`
             
             Download the `.deb` files below for traditional installation.
           files: dist/*.deb
@@ -194,6 +250,7 @@ jobs:
 
   deploy-pages:
     needs: release
+    if: needs.release.result == 'success'
     runs-on: ubuntu-latest
     permissions:
       pages: write

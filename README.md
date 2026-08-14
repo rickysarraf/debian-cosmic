@@ -6,6 +6,8 @@ Welcome to the standalone **Debian COSMIC** project. This repository provides a 
 
 By carving this out of the Desktop Brewery, we ensure dedicated attention to the unique packaging and delivery needs of COSMIC on Debian.
 
+> **Note:** This is an unofficial, community-maintained convenience packaging effort. It is not affiliated with, endorsed by, or an official product of the Debian Project or System76.
+
 ---
 
 ## 🏗️ Delivery Formats
@@ -15,12 +17,14 @@ We provide two primary delivery formats to cater to different user needs:
 ### 1. Monorepo .deb Packages
 Unified Debian packages for traditional installation.
 - **`cosmic-epoch-monorepo`**: The full Core DE stack (Compositor, Panel, Settings, etc.).
+- **`cosmic-utils-monorepo`**: A curated set of community applet extensions (`clippy-land`, `cosmic-ext-applet-dict`, `cosmic-ext-connected`, `cosmic-ext-applet-tempest`), packaged separately so they can be built and updated independently of the core DE stack.
 
 Packages are automatically versioned (e.g., `1.0.11-1.build42`) and promoted to [GitHub Releases](https://github.com/rickysarraf/debian-cosmic/releases).
 
 ### 2. System Extensions (`sysext`)
 Optimized OCI images for `systemd-sysext`, allowing you to run COSMIC without polluting your host's `/usr`.
 - Delivered via the GitHub Container Registry (GHCR).
+- **Disclaimer:** `systemd-sysext` delivery is intended for power-users, immutable-host setups, and rapid testing. It is not the recommended path for typical desktop installs — prefer the native `.deb` packages above unless you specifically need a non-destructive overlay.
 
 ---
 
@@ -59,6 +63,8 @@ echo "deb [signed-by=/etc/apt/keyrings/debian-cosmic.gpg] https://rickysarraf.gi
 # 3. Update and install
 sudo apt update
 sudo apt install cosmic-epoch-monorepo
+# Optionally, install the curated applets package too:
+sudo apt install cosmic-utils-monorepo
 ```
 
 #### Option 2: Direct .deb Download

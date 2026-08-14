@@ -1,0 +1,473 @@
+diff --git a/Cargo.toml b/Cargo.toml
+index c15f0c9..cc979a9 100644
+--- a/Cargo.toml
++++ b/Cargo.toml
+@@ -10,6 +10,7 @@ repository = "https://github.com/cappsyco/cosmic-ext-applet-dict"
+ i18n-embed-fl = "0.10.1"
+ rust-embed = "8.12.0"
+ sqlite = "0.37.0"
++tokio = { version = "1", features = ["time"] }
+ 
+ [dependencies.i18n-embed]
+ version = "0.16"
+diff --git a/dev.cappsy.CosmicExtAppletDict.json b/dev.cappsy.CosmicExtAppletDict.json
+index ed5c02a..5a0ce32 100644
+--- a/dev.cappsy.CosmicExtAppletDict.json
++++ b/dev.cappsy.CosmicExtAppletDict.json
+@@ -13,6 +13,7 @@
+     "--talk-name=com.system76.CosmicSettingsDaemon",
+     "--talk-name=org.freedesktop.Flatpak",
+     "--filesystem=xdg-config/cosmic:rw",
++    "--share=network",
+     "--share=ipc"
+   ],
+   "build-options": {
+diff --git a/src/app.rs b/src/app.rs
+index 1ddc112..95a9fb0 100644
+--- a/src/app.rs
++++ b/src/app.rs
+@@ -7,7 +7,8 @@ use cosmic::iced::{Limits, Subscription, window::Id};
+ use cosmic::prelude::*;
+ use cosmic::widget::{self, Space};
+ use cosmic::widget::{column, container, row, scrollable};
+-use cosmic_ext_applet_dict::{Entry, fetch_words};
++use cosmic_ext_applet_dict::{Entry, fetch_words_with_server};
++use crate::ipc;
+ 
+ #[derive(Default)]
+ pub struct AppModel {
+@@ -138,6 +139,7 @@ impl cosmic::Application for AppModel {
+             self.core()
+                 .watch_config::<Config>(Self::APP_ID)
+                 .map(|update| Message::UpdateConfig(update.config)),
++            ipc::signal_file_watcher(),
+         ])
+     }
+ 
+@@ -148,18 +150,21 @@ impl cosmic::Application for AppModel {
+             }
+             Message::Search => {
+                 if !self.search_text.is_empty() {
+-                    self.entries = fetch_words(if &self.search_text != "" {
+-                        Some(&self.search_text)
+-                    } else {
+-                        None
+-                    })
++                    self.entries = fetch_words_with_server(
++                        &self.config.dict_server,
++                        if &self.search_text != "" {
++                            Some(&self.search_text)
++                        } else {
++                            None
++                        },
++                    )
+                     .unwrap_or(vec![]);
+                 } else {
+                     self.entries = vec![];
+                 }
+             }
+             Message::Random => {
+-                self.entries = fetch_words(None).unwrap_or(vec![]);
++                self.entries = fetch_words_with_server(&self.config.dict_server, None).unwrap_or(vec![]);
+                 self.search_text = String::new();
+             }
+             Message::UpdateConfig(config) => {
+diff --git a/src/config.rs b/src/config.rs
+index 5d768a8..c26c8bd 100644
+--- a/src/config.rs
++++ b/src/config.rs
+@@ -2,8 +2,16 @@
+ 
+ use cosmic::cosmic_config::{self, cosmic_config_derive::CosmicConfigEntry, CosmicConfigEntry};
+ 
+-#[derive(Debug, Default, Clone, CosmicConfigEntry, Eq, PartialEq)]
++#[derive(Debug, Clone, CosmicConfigEntry, Eq, PartialEq)]
+ #[version = 1]
+ pub struct Config {
+-    demo: String,
++    pub dict_server: String,
++}
++
++impl Default for Config {
++    fn default() -> Self {
++        Self {
++            dict_server: "127.0.0.1:2628".to_string(),
++        }
++    }
+ }
+diff --git a/src/dict_client.rs b/src/dict_client.rs
+new file mode 100644
+index 0000000..09fa4d4
+--- /dev/null
++++ b/src/dict_client.rs
+@@ -0,0 +1,206 @@
++// SPDX-License-Identifier: GPL-3.0-only
++
++use std::collections::BTreeMap;
++use std::io::{BufRead, BufReader, Write};
++use std::net::TcpStream;
++use std::time::Duration;
++use crate::{Definition, Entry};
++
++/// Connect to a DICT server (RFC 2229) and query word definitions.
++pub fn fetch_words_dict_server(
++    server_addr: &str,
++    search_q: Option<&str>,
++) -> Result<Vec<Entry>, String> {
++    let stream = TcpStream::connect_timeout(
++        &server_addr
++            .parse()
++            .map_err(|e| format!("Invalid server address {}: {}", server_addr, e))?,
++        Duration::from_millis(1500),
++    )
++    .map_err(|e| format!("Connection to {} failed: {}", server_addr, e))?;
++
++    stream
++        .set_read_timeout(Some(Duration::from_millis(3000)))
++        .ok();
++    stream
++        .set_write_timeout(Some(Duration::from_millis(3000)))
++        .ok();
++
++    let mut reader = BufReader::new(stream.try_clone().map_err(|e| format!("{}", e))?);
++    let mut writer = stream;
++
++    let mut banner = String::new();
++    reader
++        .read_line(&mut banner)
++        .map_err(|e| format!("Failed to read banner: {}", e))?;
++    if !banner.starts_with("220") {
++        return Err(format!("Invalid DICT banner: {}", banner.trim()));
++    }
++
++    let query_str = search_q.unwrap_or("hello").trim();
++    if query_str.is_empty() {
++        return Ok(vec![]);
++    }
++
++    let mut entries = query_define(&mut reader, &mut writer, query_str)?;
++
++    if entries.is_empty() && search_q.is_some() {
++        if let Ok(matches) = query_match(&mut reader, &mut writer, query_str) {
++            for matched_word in matches.iter().take(3) {
++                if let Ok(def_entries) = query_define(&mut reader, &mut writer, matched_word) {
++                    entries.extend(def_entries);
++                }
++            }
++        }
++    }
++
++    let _ = writer.write_all(b"QUIT\r\n");
++
++    if entries.is_empty() {
++        Err("No definitions found on DICT server".to_string())
++    } else {
++        Ok(entries)
++    }
++}
++
++fn query_define<R: BufRead, W: Write>(
++    reader: &mut R,
++    writer: &mut W,
++    word: &str,
++) -> Result<Vec<Entry>, String> {
++    let cmd = format!("DEFINE * {}\r\n", word);
++    writer
++        .write_all(cmd.as_bytes())
++        .map_err(|e| format!("Write error: {}", e))?;
++    writer.flush().map_err(|e| format!("Flush error: {}", e))?;
++
++    let mut entries_map: BTreeMap<String, Vec<Definition>> = BTreeMap::new();
++    let mut current_word = word.to_string();
++    let mut current_db = String::new();
++    let mut current_def = String::new();
++    let mut in_def = false;
++
++    loop {
++        let mut line = String::new();
++        if reader.read_line(&mut line).map_err(|e| format!("Read error: {}", e))? == 0 {
++            break;
++        }
++
++        if in_def {
++            if line == ".\r\n" || line == ".\n" {
++                in_def = false;
++                entries_map
++                    .entry(current_word.clone())
++                    .or_default()
++                    .push(Definition {
++                        speech_part: current_db.clone(),
++                        def: current_def.trim().to_string(),
++                        example: String::new(),
++                    });
++                current_def.clear();
++            } else {
++                let trimmed_line = if line.starts_with("..") {
++                    &line[1..]
++                } else {
++                    &line
++                };
++                current_def.push_str(trimmed_line);
++            }
++            continue;
++        }
++
++        if line.starts_with("150") {
++            continue;
++        }
++
++        if line.starts_with("151") {
++            in_def = true;
++            current_def.clear();
++            let parts: Vec<&str> = line.split_whitespace().collect();
++            if parts.len() >= 3 {
++                current_word = parts[1].trim_matches('"').to_string();
++                current_db = parts[2].trim_matches('"').to_string();
++            }
++            continue;
++        }
++
++        if line.starts_with("250")
++            || line.starts_with("552")
++            || line.starts_with("500")
++            || line.starts_with("501")
++        {
++            break;
++        }
++    }
++
++    let mut result = Vec::new();
++    for (w, defs) in entries_map {
++        result.push(Entry { word: w, defs });
++    }
++    Ok(result)
++}
++
++fn query_match<R: BufRead, W: Write>(
++    reader: &mut R,
++    writer: &mut W,
++    prefix: &str,
++) -> Result<Vec<String>, String> {
++    let cmd = format!("MATCH * prefix {}\r\n", prefix);
++    writer
++        .write_all(cmd.as_bytes())
++        .map_err(|e| format!("Write error: {}", e))?;
++    writer.flush().map_err(|e| format!("Flush error: {}", e))?;
++
++    let mut matches = Vec::new();
++    let mut in_matches = false;
++
++    loop {
++        let mut line = String::new();
++        if reader.read_line(&mut line).map_err(|e| format!("Read error: {}", e))? == 0 {
++            break;
++        }
++
++        if line.starts_with("152") {
++            in_matches = true;
++            continue;
++        }
++
++        if in_matches {
++            if line == ".\r\n" || line == ".\n" {
++                break;
++            }
++            if let Some(first_quote) = line.find('"') {
++                if let Some(last_quote) = line.rfind('"') {
++                    if last_quote > first_quote {
++                        let matched_word = line[first_quote + 1..last_quote].to_string();
++                        if !matches.contains(&matched_word) {
++                            matches.push(matched_word);
++                        }
++                    }
++                }
++            }
++            continue;
++        }
++
++        if line.starts_with("250") || line.starts_with("552") {
++            break;
++        }
++    }
++
++    Ok(matches)
++}
++
++#[cfg(test)]
++mod tests {
++    use super::*;
++
++    // Requires a live DICT server at 127.0.0.1:2628; not run by default in CI.
++    #[test]
++    #[ignore]
++    fn test_fetch_words_localhost() {
++        let res = fetch_words_dict_server("127.0.0.1:2628", Some("hello"));
++        assert!(res.is_ok(), "Expected OK response from localhost DICT server");
++        let entries = res.unwrap();
++        assert!(!entries.is_empty(), "Expected definitions for 'hello'");
++    }
++}
+diff --git a/src/ipc.rs b/src/ipc.rs
+new file mode 100644
+index 0000000..bfa0532
+--- /dev/null
++++ b/src/ipc.rs
+@@ -0,0 +1,81 @@
++// SPDX-License-Identifier: GPL-3.0-only
++
++use std::fs;
++use std::hash::{Hash, Hasher};
++use std::path::PathBuf;
++use std::time::SystemTime;
++
++use crate::app::Message;
++use cosmic::iced::Subscription;
++use cosmic::iced::futures::SinkExt;
++use cosmic::iced::futures::channel::mpsc;
++use cosmic::iced::stream::channel;
++
++const SIGNAL_POLL_INTERVAL_MS: u64 = 50;
++
++/// Get the signal file path for IPC toggle functionality.
++pub fn get_signal_file_path() -> Option<PathBuf> {
++    if let Some(path) = std::env::var_os("COSMIC_DICT_SIGNAL_FILE") {
++        let path = PathBuf::from(path);
++        if !path.as_os_str().is_empty() {
++            return Some(path);
++        }
++    }
++
++    std::env::var("XDG_RUNTIME_DIR")
++        .ok()
++        .map(|runtime_dir| PathBuf::from(runtime_dir).join("cosmic-ext-applet-dict-toggle"))
++        .or_else(|| Some(PathBuf::from("/tmp/cosmic-ext-applet-dict-toggle")))
++}
++
++/// Send a toggle signal by writing a timestamp to the signal file.
++pub fn send_toggle_signal() -> std::io::Result<()> {
++    let signal_file = get_signal_file_path().ok_or_else(|| {
++        std::io::Error::new(
++            std::io::ErrorKind::NotFound,
++            "Cannot determine signal file path",
++        )
++    })?;
++
++    let timestamp_ms = SystemTime::now()
++        .duration_since(SystemTime::UNIX_EPOCH)
++        .map(|d| d.as_millis())
++        .map_err(|e| std::io::Error::other(e))?;
++
++    fs::write(&signal_file, timestamp_ms.to_string())?;
++    Ok(())
++}
++
++struct SignalFileWatcher;
++
++impl Hash for SignalFileWatcher {
++    fn hash<H: Hasher>(&self, state: &mut H) {
++        "cosmic-ext-applet-dict-signal-watcher".hash(state);
++    }
++}
++
++/// Poll for the toggle signal file at a 50ms interval.
++pub fn signal_file_watcher() -> Subscription<Message> {
++    Subscription::run_with(SignalFileWatcher, |_| {
++        channel(1, |mut output: mpsc::Sender<Message>| async move {
++            let signal_file = match get_signal_file_path() {
++                Some(path) => path,
++                None => {
++                    std::future::pending::<()>().await;
++                    unreachable!();
++                }
++            };
++
++            loop {
++                tokio::time::sleep(tokio::time::Duration::from_millis(SIGNAL_POLL_INTERVAL_MS))
++                    .await;
++                if signal_file.exists() {
++                    let _ = std::fs::remove_file(&signal_file);
++                    if output.send(Message::TogglePopup).await.is_err() {
++                        break;
++                    }
++                }
++            }
++        })
++    })
++}
+diff --git a/src/lib.rs b/src/lib.rs
+index d87d10a..5eecf72 100644
+--- a/src/lib.rs
++++ b/src/lib.rs
+@@ -1,6 +1,8 @@
+ use sqlite::State;
+ use std::path::PathBuf;
+ 
++pub mod dict_client;
++
+ #[derive(Debug)]
+ pub struct Entry {
+     pub word: String,
+@@ -15,6 +17,22 @@ pub struct Definition {
+ }
+ 
+ pub fn fetch_words(search_q: Option<&str>) -> Result<Vec<Entry>, sqlite::Error> {
++    fetch_words_with_server("127.0.0.1:2628", search_q)
++}
++
++pub fn fetch_words_with_server(
++    server_addr: &str,
++    search_q: Option<&str>,
++) -> Result<Vec<Entry>, sqlite::Error> {
++    if let Ok(entries) = dict_client::fetch_words_dict_server(server_addr, search_q) {
++        if !entries.is_empty() {
++            return Ok(entries);
++        }
++    }
++    fetch_words_sqlite(search_q)
++}
++
++pub fn fetch_words_sqlite(search_q: Option<&str>) -> Result<Vec<Entry>, sqlite::Error> {
+     let connection = sqlite::open(get_dictionary_path())?;
+ 
+     let query = match search_q {
+diff --git a/src/main.rs b/src/main.rs
+index cde1b02..faf2aec 100644
+@@ -3,8 +3,38 @@
+ mod app;
+ mod config;
+ mod i18n;
++mod ipc;
+ 
+ fn main() -> cosmic::iced::Result {
++    for arg in std::env::args().skip(1) {
++        if arg == "--toggle" || arg == "-t" {
++            if let Err(e) = ipc::send_toggle_signal() {
++                eprintln!("Failed to send toggle signal for cosmic-ext-applet-dict: {e}");
++                std::process::exit(1);
++            }
++            return Ok(());
++        }
++
++        if arg == "-h" || arg == "--help" {
++            println!("dev.cappsy.CosmicExtAppletDict - Dictionary applet for COSMIC");
++            println!();
++            println!("USAGE:");
++            println!("    cosmic-ext-applet-dict [OPTIONS]");
++            println!();
++            println!("OPTIONS:");
++            println!("    -t, --toggle    Toggle the dictionary popup via keyboard shortcut");
++            println!("    -h, --help      Print this help message");
++            println!();
++            println!("KEYBOARD SHORTCUT SETUP:");
++            println!("    1. Open COSMIC Settings > Keyboard > Custom Shortcuts");
++            println!("    2. Click 'Add Custom Shortcut'");
++            println!("    3. Name:    Dictionary Applet");
++            println!("    4. Command: flatpak run dev.cappsy.CosmicExtAppletDict --toggle");
++            println!("    5. Shortcut: Press Super+Shift+D (or preferred key combo)");
++            return Ok(());
++        }
++    }
++
+     // Get the system's preferred languages.
+     let requested_languages = i18n_embed::DesktopLanguageRequester::requested_languages();
+ 
