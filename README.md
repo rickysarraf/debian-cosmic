@@ -17,7 +17,7 @@ We provide two primary delivery formats to cater to different user needs:
 ### 1. Monorepo .deb Packages
 Unified Debian packages for traditional installation.
 - **`cosmic-epoch-monorepo`**: The full Core DE stack (Compositor, Panel, Settings, etc.).
-- **`cosmic-utils-monorepo`**: A curated set of community applet extensions (`clippy-land`, `cosmic-ext-applet-dict`, `cosmic-ext-connected`, `cosmic-ext-applet-tempest`), packaged separately so they can be built and updated independently of the core DE stack.
+- **`cosmic-utils-monorepo`**: A curated set of community applet extensions (`clippy-land`, `cosmic-ext-applet-dict`, `cosmic-ext-applet-tempest`), packaged separately so they can be built and updated independently of the core DE stack.
 
 Packages are automatically versioned (e.g., `1.0.11-1.build42`) and promoted to [GitHub Releases](https://github.com/rickysarraf/debian-cosmic/releases).
 

@@ -12,8 +12,7 @@ Description: Unified COSMIC Community Utilities
  applets for the COSMIC Desktop Environment: a clipboard manager
  (clippy-land), a Dictionary lookup applet (cosmic-ext-applet-dict,
  backed by a localhost DICT server with an IPC toggle shortcut),
- a KDE Connect integration applet (cosmic-ext-connected), and a
- weather forecast applet (cosmic-ext-applet-tempest).
+ and a weather forecast applet (cosmic-ext-applet-tempest).
  .
  This package is strictly tied to the version of cosmic-epoch-monorepo 
  it was built against.

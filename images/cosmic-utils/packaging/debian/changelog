@@ -1,8 +1,7 @@
 cosmic-utils-monorepo (1.5.0-2) unstable; urgency=medium
 
   * Re-enable cosmic-utils build with a curated set of applets:
-    clippy-land, cosmic-ext-applet-dict, cosmic-ext-connected, and
-    cosmic-ext-applet-tempest.
+    clippy-land, cosmic-ext-applet-dict, and cosmic-ext-applet-tempest.
   * cosmic-ext-applet-dict: apply upstream patch adding a localhost
     DICT-protocol backend and an IPC-based --toggle shortcut.
 
