@@ -1,4 +1,4 @@
-VERSION := "1.5.0-2~local1"
+VERSION := "1.5.0-3~local1"
 DEB_PACKAGE := "cosmic-epoch-monorepo.deb"
 UTILS_DEB_PACKAGE := "cosmic-utils-monorepo.deb"
 
