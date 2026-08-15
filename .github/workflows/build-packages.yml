@@ -16,7 +16,7 @@ concurrency:
 env:
   REGISTRY: ghcr.io
   IMAGE_PREFIX: ${{ github.repository_owner }}
-  BASE_VERSION: "1.5.0-2"
+  BASE_VERSION: "1.5.0-3"
 
 jobs:
   changes:
@@ -177,6 +177,35 @@ jobs:
           path: dist/
           merge-multiple: true
 
+      - name: Ensure both package artifacts are present for release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          mkdir -p dist
+          has_pkg() {
+            local want="$1" deb pkg
+            for deb in dist/*.deb; do
+              pkg="$(dpkg-deb -f "$deb" Package 2>/dev/null || true)"
+              [ "$pkg" = "$want" ] && return 0
+            done
+            return 1
+          }
+          if ! has_pkg cosmic-epoch-monorepo; then
+            echo "cosmic-epoch-monorepo missing from this run; downloading from latest release..."
+            gh release download --repo "${{ github.repository }}" --pattern "cosmic-epoch-monorepo*.deb" --dir dist/
+          fi
+          if ! has_pkg cosmic-utils-monorepo; then
+            echo "cosmic-utils-monorepo missing from this run; downloading from latest release..."
+            gh release download --repo "${{ github.repository }}" --pattern "cosmic-utils-monorepo*.deb" --dir dist/
+          fi
+          if ! has_pkg cosmic-epoch-monorepo || ! has_pkg cosmic-utils-monorepo; then
+            echo "Release must ship both cosmic-epoch-monorepo and cosmic-utils-monorepo." >&2
+            ls -la dist/ >&2 || true
+            exit 1
+          fi
+
       - name: Normalize .deb filenames with package version
         run: |
           shopt -s nullglob
@@ -197,12 +226,10 @@ jobs:
             echo "No .deb artifacts found in dist/" >&2
             exit 1
           fi
-          mapfile -t versions < <(for deb in "${debs[@]}"; do dpkg-deb -f "$deb" Version; done | sort -u)
-          if [ ${#versions[@]} -ne 1 ]; then
-            echo "Expected a single package version, found: ${versions[*]}" >&2
-            exit 1
-          fi
-          echo "release_version=${versions[0]}" >> "$GITHUB_OUTPUT"
+          # This run's version. A backfilled sibling from the previous
+          # release may carry an older Version; do not fail the combo.
+          rel_ver="${{ env.BASE_VERSION }}.build${{ github.run_number }}"
+          echo "release_version=$rel_ver" >> "$GITHUB_OUTPUT"
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2

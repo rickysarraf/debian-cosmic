@@ -34,10 +34,13 @@ RUN mkdir -p /export/usr
 # 2. Clone and Build Curated COSMIC Applet Extensions
 
 # clippy-land (Clipboard manager applet)
+COPY patches/0002-clippy-land-desktop-exec-path-and-history-persistence.patch /tmp/
 RUN git clone --depth 1 https://github.com/k33wee/clippy-land.git && \
-    cd clippy-land && just build-release && just prefix=/export/usr install
+    cd clippy-land && \
+    patch -p1 < /tmp/0002-clippy-land-desktop-exec-path-and-history-persistence.patch && \
+    just build-release && just prefix=/export/usr install
 
-# cosmic-ext-applet-dict (Dictionary applet, with localhost DICT server + IPC toggle fix)
+# cosmic-ext-applet-dict (embedded sqlite default; optional dictd via dict_server + IPC toggle)
 COPY patches/0001-cosmic-ext-applet-dict-localhost-backend-and-ipc-toggle.patch /tmp/
 RUN git clone --depth 1 https://github.com/cosmic-utils/cosmic-ext-applet-dict.git && \
     cd cosmic-ext-applet-dict && \

@@ -1,3 +1,13 @@
+cosmic-utils-monorepo (1.5.0-3) unstable; urgency=medium
+
+  * clippy-land: PATH-based .desktop Exec (no staging /export prefix)
+    and persist clipboard history across restarts (load/save max_history;
+    missing pinned deserializes as true).
+  * cosmic-ext-applet-dict: default to upstream embedded sqlite; optional
+    local dictd via dict_server; keep IPC --toggle shortcut.
+
+ -- Ritesh Raj Sarraf <rrs@debian.org>  Sat, 15 Aug 2026 12:30:00 +0000
+
 cosmic-utils-monorepo (1.5.0-2) unstable; urgency=medium
 
   * Re-enable cosmic-utils build with a curated set of applets:

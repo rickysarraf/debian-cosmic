@@ -1,0 +1,108 @@
+diff --git a/justfile b/justfile
+index 0a2b233..34c9312 100644
+--- a/justfile
++++ b/justfile
+@@ -28,7 +28,7 @@ install:
+     install -Dm755 target/release/{{name}}          {{bin_dir}}/{{name}}
+     install -Dm755 resources/{{name}}.sh            {{bin_dir}}/{{name}}.sh
+     sh scripts/render-debug-wrapper.sh resources/{{name}}-debug.sh.in "{{bin_dir}}/{{name}}" "{{debug_wrapper}}"
+-    sh scripts/render-desktop-entry.sh resources/{{appid}}.desktop "{{bin_dir}}/{{name}}" "{{app_dir}}/{{appid}}.desktop"
++    sh scripts/render-desktop-entry.sh resources/{{appid}}.desktop "{{name}}" "{{app_dir}}/{{appid}}.desktop"
+     install -Dm644 resources/{{appid}}.metainfo.xml {{metainfo_dir}}/{{appid}}.metainfo.xml
+     install -Dm644 resources/icon.svg               {{icon_dir}}/{{appid}}.svg
+     install -Dm644 resources/icon.svg               {{icon_dir}}/{{appid}}-symbolic.svg
+diff --git a/src/app/pinned_history.rs b/src/app/pinned_history.rs
+index 8e52937..445c7eb 100644
+--- a/src/app/pinned_history.rs
++++ b/src/app/pinned_history.rs
+@@ -27,6 +27,10 @@ impl Default for PinnedHistoryFile {
+     }
+ }
+ 
++fn default_true() -> bool {
++    true
++}
++
+ #[derive(Debug, Clone, Deserialize, Serialize)]
+ struct PersistedEntry {
+     kind: PersistedEntryKind,
+@@ -35,6 +39,8 @@ struct PersistedEntry {
+     bytes_len: Option<usize>,
+     bytes_file: Option<String>,
+     thumbnail_file: Option<String>,
++    #[serde(default = "default_true")]
++    pinned: bool,
+ }
+ 
+ #[derive(Debug, Clone, Copy, Deserialize, Serialize, PartialEq, Eq)]
+@@ -48,7 +56,7 @@ pub(in crate::app) fn load(settings: &AppSettings) -> VecDeque<HistoryItem> {
+         return VecDeque::new();
+     };
+ 
+-    load_from_path(&path, settings.max_pinned.min(AppSettings::MAX_PINNED))
++    load_from_path(&path, settings.max_history.min(AppSettings::MAX_HISTORY))
+ }
+ 
+ pub(in crate::app) fn save(history: &VecDeque<HistoryItem>) {
+@@ -60,7 +68,7 @@ pub(in crate::app) fn save(history: &VecDeque<HistoryItem>) {
+     }
+ }
+ 
+-fn load_from_path(path: &Path, max_pinned: usize) -> VecDeque<HistoryItem> {
++fn load_from_path(path: &Path, max_history: usize) -> VecDeque<HistoryItem> {
+     let Ok(raw) = fs::read_to_string(path) else {
+         return VecDeque::new();
+     };
+@@ -76,7 +84,7 @@ fn load_from_path(path: &Path, max_pinned: usize) -> VecDeque<HistoryItem> {
+     file.entries
+         .into_iter()
+         .filter_map(|entry| entry.into_history_item(&blob_dir))
+-        .take(max_pinned)
++        .take(max_history)
+         .collect()
+ }
+ 
+@@ -93,8 +99,7 @@ fn save_to_path(history: &VecDeque<HistoryItem>, path: &Path) -> io::Result<()>
+     let mut blob_files_to_keep = HashSet::new();
+     let entries = history
+         .iter()
+-        .filter(|item| item.pinned)
+-        .take(AppSettings::MAX_PINNED)
++        .take(AppSettings::MAX_HISTORY)
+         .enumerate()
+         .map(|(idx, item)| entry_to_persisted(item, idx, &blob_dir, &mut blob_files_to_keep))
+         .collect::<io::Result<Vec<_>>>()?;
+@@ -133,6 +138,7 @@ fn entry_to_persisted(
+             bytes_len: None,
+             bytes_file: None,
+             thumbnail_file: None,
++            pinned: item.pinned,
+         }),
+         ClipboardEntry::Image {
+             mime,
+@@ -163,6 +169,7 @@ fn entry_to_persisted(
+                 bytes_len: Some(bytes.len()),
+                 bytes_file: Some(bytes_file),
+                 thumbnail_file,
++                pinned: item.pinned,
+             })
+         }
+     }
+@@ -173,7 +170,7 @@ impl PersistedEntry {
+         match self.kind {
+             PersistedEntryKind::Text => Some(HistoryItem {
+                 entry: ClipboardEntry::Text(self.text?),
+-                pinned: true,
++                pinned: self.pinned,
+             }),
+             PersistedEntryKind::Image => {
+                 let mime = self.mime?;
+@@ -199,7 +196,7 @@ impl PersistedEntry {
+                         hash,
+                         thumbnail_png,
+                     },
+-                    pinned: true,
++                    pinned: self.pinned,
+                 })
+             }
+         }
