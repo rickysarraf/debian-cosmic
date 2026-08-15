@@ -53,8 +53,8 @@ index 1ddc112..95a9fb0 100644
 -                        None
 -                    })
 -                    .unwrap_or(vec![]);
-+                    let query = if &self.search_text != "" {
-+                        Some(&self.search_text)
++                    let query = if !self.search_text.is_empty() {
++                        Some(self.search_text.as_str())
 +                    } else {
 +                        None
 +                    };
