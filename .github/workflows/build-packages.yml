@@ -184,6 +184,8 @@ jobs:
           set -euo pipefail
           shopt -s nullglob
           mkdir -p dist
+
+          # Returns 0 if a .deb with the given Package header exists in dist/
           has_pkg() {
             local want="$1" deb pkg
             for deb in dist/*.deb; do
@@ -192,24 +194,91 @@ jobs:
             done
             return 1
           }
-          if ! has_pkg cosmic-epoch-monorepo; then
-            echo "cosmic-epoch-monorepo missing from this run; downloading from latest release..."
-            gh release download --repo "${{ github.repository }}" --pattern "cosmic-epoch-monorepo*.deb" --dir dist/ || true
+
+          # Search prior successful workflow runs for the first one that
+          # actually uploaded an artifact whose name matches $artifact_name,
+          # then download it into dist/.  Returns 1 if nothing is found.
+          backfill_from_prior_run() {
+            local artifact_name="$1"
+            local pkg_label="$2"
+            local workflow_id
+            workflow_id="$(gh api \
+              "repos/${{ github.repository }}/actions/runs/${{ github.run_id }}" \
+              --jq '.workflow_id')"
+
+            echo "Searching prior successful runs of workflow ${workflow_id} for artifact '${artifact_name}'..."
+
+            # Iterate over recent successful runs (excluding current), newest first
+            local page=1
+            while true; do
+              local runs
+              runs="$(gh api \
+                "repos/${{ github.repository }}/actions/workflows/${workflow_id}/runs?status=success&per_page=20&page=${page}" \
+                --jq '.workflow_runs[].id')"
+              [ -n "$runs" ] || break
+
+              while IFS= read -r run_id; do
+                # Skip the current run
+                [ "$run_id" = "${{ github.run_id }}" ] && continue
+
+                # Check whether this run has the artifact we need
+                local artifact_id
+                artifact_id="$(gh api \
+                  "repos/${{ github.repository }}/actions/runs/${run_id}/artifacts" \
+                  --jq ".artifacts[] | select(.name == \"${artifact_name}\") | .id" \
+                  2>/dev/null | head -n1 || true)"
+
+                if [ -n "$artifact_id" ]; then
+                  echo "Found '${artifact_name}' in run ${run_id} (artifact id ${artifact_id}). Backfilling ${pkg_label}..."
+                  gh run download "$run_id" \
+                    --repo "${{ github.repository }}" \
+                    --name "$artifact_name" \
+                    --dir dist/
+                  echo "::notice::${pkg_label} was backfilled from prior run ${run_id} (artifact '${artifact_name}')."
+                  return 0
+                fi
+              done <<< "$runs"
+
+              # If the page returned fewer than 20 results, we've exhausted all runs
+              local count
+              count="$(echo "$runs" | grep -c .)"
+              [ "$count" -lt 20 ] && break
+              page=$((page + 1))
+            done
+
+            echo "::warning::No prior successful run found that uploaded artifact '${artifact_name}'." >&2
+            return 1
+          }
+
+          # --- cosmic-epoch-monorepo ---
+          if has_pkg cosmic-epoch-monorepo; then
+            echo "cosmic-epoch-monorepo is present from the current run."
+          else
+            echo "cosmic-epoch-monorepo missing from current run; attempting backfill..."
+            backfill_from_prior_run "cosmic-epoch-deb" "cosmic-epoch-monorepo" \
+              || echo "::warning::Backfill for cosmic-epoch-monorepo found no prior artifact."
           fi
-          if ! has_pkg cosmic-utils-monorepo; then
-            echo "cosmic-utils-monorepo missing from this run; downloading from latest release..."
-            gh release download --repo "${{ github.repository }}" --pattern "cosmic-utils-monorepo*.deb" --dir dist/ || true
+
+          # --- cosmic-utils-monorepo ---
+          if has_pkg cosmic-utils-monorepo; then
+            echo "cosmic-utils-monorepo is present from the current run."
+          else
+            echo "cosmic-utils-monorepo missing from current run; attempting backfill..."
+            backfill_from_prior_run "cosmic-utils-deb" "cosmic-utils-monorepo" \
+              || echo "::warning::Backfill for cosmic-utils-monorepo found no prior artifact."
           fi
+
+          # Final guard: require both packages
           missing=()
           has_pkg cosmic-epoch-monorepo || missing+=("cosmic-epoch-monorepo")
           has_pkg cosmic-utils-monorepo || missing+=("cosmic-utils-monorepo")
-          if [ ${#missing[@]} -eq 2 ]; then
-            echo "Release has no packages at all — cannot proceed." >&2
+          if [ ${#missing[@]} -gt 0 ]; then
+            echo "ERROR: The following package(s) could not be obtained: ${missing[*]}" >&2
+            echo "Available files in dist/:" >&2
             ls -la dist/ >&2 || true
             exit 1
-          elif [ ${#missing[@]} -eq 1 ]; then
-            echo "::warning::Package ${missing[0]} could not be obtained (no prior release yet or download failed). Proceeding with available artifacts."
           fi
+          echo "Both packages are present in dist/. Proceeding with release."
 
       - name: Normalize .deb filenames with package version
         run: |
