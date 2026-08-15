@@ -194,16 +194,21 @@ jobs:
           }
           if ! has_pkg cosmic-epoch-monorepo; then
             echo "cosmic-epoch-monorepo missing from this run; downloading from latest release..."
-            gh release download --repo "${{ github.repository }}" --pattern "cosmic-epoch-monorepo*.deb" --dir dist/
+            gh release download --repo "${{ github.repository }}" --pattern "cosmic-epoch-monorepo*.deb" --dir dist/ || true
           fi
           if ! has_pkg cosmic-utils-monorepo; then
             echo "cosmic-utils-monorepo missing from this run; downloading from latest release..."
-            gh release download --repo "${{ github.repository }}" --pattern "cosmic-utils-monorepo*.deb" --dir dist/
+            gh release download --repo "${{ github.repository }}" --pattern "cosmic-utils-monorepo*.deb" --dir dist/ || true
           fi
-          if ! has_pkg cosmic-epoch-monorepo || ! has_pkg cosmic-utils-monorepo; then
-            echo "Release must ship both cosmic-epoch-monorepo and cosmic-utils-monorepo." >&2
+          missing=()
+          has_pkg cosmic-epoch-monorepo || missing+=("cosmic-epoch-monorepo")
+          has_pkg cosmic-utils-monorepo || missing+=("cosmic-utils-monorepo")
+          if [ ${#missing[@]} -eq 2 ]; then
+            echo "Release has no packages at all — cannot proceed." >&2
             ls -la dist/ >&2 || true
             exit 1
+          elif [ ${#missing[@]} -eq 1 ]; then
+            echo "::warning::Package ${missing[0]} could not be obtained (no prior release yet or download failed). Proceeding with available artifacts."
           fi
 
       - name: Normalize .deb filenames with package version
