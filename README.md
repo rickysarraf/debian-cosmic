@@ -2,9 +2,7 @@
 
 [![Debian COSMIC - Build Packages](https://github.com/rickysarraf/debian-cosmic/actions/workflows/build-packages.yml/badge.svg)](https://github.com/rickysarraf/debian-cosmic/actions/workflows/build-packages.yml)
 
-Welcome to the standalone **Debian COSMIC** project. This repository provides a unified delivery pipeline for the [System76 COSMIC Desktop Environment](https://github.com/pop-os/cosmic) on **Debian Testing** and **Debian Unstable**.
-
-By carving this out of the Desktop Brewery, we ensure dedicated attention to the unique packaging and delivery needs of COSMIC on Debian.
+Welcome to the standalone **Debian COSMIC** project. This repository provides a unified delivery pipeline for the [System76 COSMIC Desktop Environment](https://github.com/pop-os/cosmic-epoch) on **Debian Testing** and **Debian Unstable**.
 
 > **Note:** This is an unofficial, community-maintained convenience packaging effort. It is not affiliated with, endorsed by, or an official product of the Debian Project or System76.
 

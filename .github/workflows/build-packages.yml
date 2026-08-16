@@ -62,10 +62,16 @@ jobs:
 
     steps:
       # job-level `if:` cannot see the `matrix` context, so the per-leg
-      # gating (schedule/workflow_dispatch always build; push/pull_request
-      # only build the leg(s) whose context changed, so a cosmic-utils-only
-      # change never forces the ~5h cosmic-epoch rebuild) is done here as a
-      # step output, and every subsequent step is gated on it.
+      # gating (schedule/workflow_dispatch always build both legs; push/pull_request
+      # only build the leg(s) whose context changed, so a cosmic-utils-only change
+      # never forces the ~5h cosmic-epoch rebuild) is done here as a step output,
+      # and every subsequent step is gated on it.
+      #
+      # Scheduled weekly runs intentionally bypass the path-filter optimisation
+      # and always rebuild both packages from scratch.  Debian Testing/Unstable
+      # is a moving-target distribution, so the purpose of the Friday 23:59 UTC
+      # build is to produce freshly built .deb artifacts against the current
+      # dependency state — reusing a cached/skipped build would defeat that goal.
       - name: Determine whether to build this matrix leg
         id: gate
         run: |
@@ -250,9 +256,16 @@ jobs:
             return 1
           }
 
+          # Scheduled runs must publish freshly built artifacts only; backfilling
+          # an older artifact would defeat the purpose of the weekly freshness build.
+          IS_SCHEDULED="${{ github.event_name == 'schedule' }}"
+
           # --- cosmic-epoch-monorepo ---
           if has_pkg cosmic-epoch-monorepo; then
             echo "cosmic-epoch-monorepo is present from the current run."
+          elif [ "$IS_SCHEDULED" = "true" ]; then
+            echo "::error::Scheduled run: cosmic-epoch-monorepo was not built in this run. Backfill is intentionally disabled for scheduled builds."
+            exit 1
           else
             echo "cosmic-epoch-monorepo missing from current run; attempting backfill..."
             backfill_from_prior_run "cosmic-epoch-deb" "cosmic-epoch-monorepo" \
@@ -262,6 +275,9 @@ jobs:
           # --- cosmic-utils-monorepo ---
           if has_pkg cosmic-utils-monorepo; then
             echo "cosmic-utils-monorepo is present from the current run."
+          elif [ "$IS_SCHEDULED" = "true" ]; then
+            echo "::error::Scheduled run: cosmic-utils-monorepo was not built in this run. Backfill is intentionally disabled for scheduled builds."
+            exit 1
           else
             echo "cosmic-utils-monorepo missing from current run; attempting backfill..."
             backfill_from_prior_run "cosmic-utils-deb" "cosmic-utils-monorepo" \
