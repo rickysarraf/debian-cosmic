@@ -1,3 +1,42 @@
+cosmic-epoch-monorepo (1.6.0-1) unstable; urgency=low
+
+  * New upstream release: Cosmic Epoch 1.6.0.
+    - Translation and dependency updates for many projects
+    - cosmic-applets:
+      - status-area: constrain menu icon-data to icon size
+      - audio: debounce volume updates by 128ms
+    - cosmic-comp:
+      - Support wl-dmabuf-v6
+      - Take presentation feedback from fullscreen surfaces
+      - EI protocol support
+    - cosmic-edit:
+      - Fewer redraws and context menu in input fields
+    - cosmic-files:
+      - Fix infinite dialogs with network mount failure
+      - Add context menu to text fields and selectable text widget
+    - cosmic-greeter:
+      - Detect logind presence at runtime
+      - Ignore empty password
+      - Enable JPEG-XL and AVIF
+    - cosmic-launcher:
+      - Prevent launcher flickering and closing when Ctrl modifier is used
+    - cosmic-notifications:
+      - Delay creation of popups until the parent size is available
+    - cosmic-settings:
+      - search: don't unload active page during search
+      - sound: add app specific settings
+    - cosmic-settings-daemon:
+      - Fix panic on -1 max brightness value
+      - battery: watch AC plug events from line power device via upower
+      - audio: make events backward compatible
+      - audio: handle playback specific sound settings
+    - cosmic-term:
+      - Allow configuring terminal borders
+      - Round subpixel coordinates for glyph background rectangles
+      - Redraw when needed and context menu in input fields
+
+ -- Ritesh Raj Sarraf <rrs@debian.org>  Wed, 19 Aug 2026 10:00:00 +0000
+
 cosmic-epoch-monorepo (1.5.0-2) unstable; urgency=medium
 
   * Fix cosmic-notifications panic on stdout broken pipe upon Wayland/D-Bus
