@@ -33,7 +33,7 @@ COPY patches/ /patches/
 
 # Mark the directory as safe for git
 RUN git config --global --add safe.directory /build && \
-    git clone --recursive --branch epoch-1.5.0 https://github.com/pop-os/cosmic-epoch.git . && \
+    git clone --recursive --branch epoch-1.6.0 https://github.com/pop-os/cosmic-epoch.git . && \
     patch -p1 < /patches/0001-justfile-use-just-for-xdg-desktop-portal-cosmic.patch && \
     patch -p1 < /patches/0002-cosmic-notifications-sigpipe-guard-and-libc-dep.patch
 
