@@ -72,6 +72,12 @@ COPY --from=builder /export/usr ./usr
 RUN rm -f ./usr/bin/env ./usr/bin/bash ./usr/bin/sh ./usr/bin/dash ./usr/bin/python*
 COPY packaging/debian ./DEBIAN
 RUN chmod -R 755 ./DEBIAN
+# Install changelog and copyright into usr/share/doc as required by Debian policy
+RUN mkdir -p ./usr/share/doc/cosmic-utils-monorepo && \
+    gzip -9 -c ./DEBIAN/changelog > ./usr/share/doc/cosmic-utils-monorepo/changelog.Debian.gz && \
+    cp ./DEBIAN/copyright ./usr/share/doc/cosmic-utils-monorepo/copyright && \
+    chmod 644 ./usr/share/doc/cosmic-utils-monorepo/changelog.Debian.gz \
+               ./usr/share/doc/cosmic-utils-monorepo/copyright
 # Ensure version consistency
 RUN dpkg-deb --build . /cosmic-utils-monorepo.deb
 
