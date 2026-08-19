@@ -173,9 +173,71 @@ jobs:
       contents: write
       pages: write
       id-token: write
+      pull-requests: read
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+
+      # When a PR merges into main and the path-filter skips the build, no
+      # artifacts are produced by the current run.  This step resolves the
+      # workflow run ID of the merged PR so we can download its artifacts
+      # directly instead of relying on a brute-force search of prior runs.
+      - name: Resolve merged PR workflow run ID
+        id: pr_run
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+
+          # Only attempt PR resolution on push-to-main; for schedule /
+          # workflow_dispatch there is no associated PR to look up.
+          if [[ "${{ github.event_name }}" != "push" ]]; then
+            echo "run_id=" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          workflow_id="$(gh api \
+            "repos/${{ github.repository }}/actions/runs/${{ github.run_id }}" \
+            --jq '.workflow_id')"
+
+          # Find the PR(s) associated with the merge commit on main.
+          pr_head_sha="$(gh api \
+            "repos/${{ github.repository }}/commits/${{ github.sha }}/pulls" \
+            --jq '.[0].head.sha // empty' 2>/dev/null || true)"
+
+          if [[ -z "$pr_head_sha" ]]; then
+            echo "No PR found for commit ${{ github.sha }}; skipping PR run lookup."
+            echo "run_id=" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          echo "Resolved PR head SHA: ${pr_head_sha}"
+
+          # Find the most recent successful workflow run for that PR head SHA.
+          pr_run_id="$(gh api \
+            "repos/${{ github.repository }}/actions/workflows/${workflow_id}/runs?head_sha=${pr_head_sha}&status=success&per_page=5" \
+            --jq '.workflow_runs | sort_by(.run_number) | reverse | .[0].id // empty' \
+            2>/dev/null || true)"
+
+          if [[ -z "$pr_run_id" ]]; then
+            echo "::warning::No successful workflow run found for PR head SHA ${pr_head_sha}."
+            echo "run_id=" >> "$GITHUB_OUTPUT"
+          else
+            echo "Found PR workflow run ID: ${pr_run_id}"
+            echo "run_id=${pr_run_id}" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Download artifacts from PR run
+        if: steps.pr_run.outputs.run_id != ''
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          mkdir -p dist
+          gh run download "${{ steps.pr_run.outputs.run_id }}" \
+            --repo "${{ github.repository }}" \
+            --dir dist/
+          echo "Downloaded artifacts from PR run ${{ steps.pr_run.outputs.run_id }}:"
+          ls -la dist/ || true
 
       - name: Download all artifacts
         uses: actions/download-artifact@v4
@@ -201,9 +263,9 @@ jobs:
             return 1
           }
 
-          # Search prior successful workflow runs for the first one that
-          # actually uploaded an artifact whose name matches $artifact_name,
-          # then download it into dist/.  Returns 1 if nothing is found.
+          # Last-resort fallback: brute-force search of prior successful runs.
+          # This covers edge cases such as workflow_dispatch on main with no
+          # associated PR, or when the PR run lookup above found nothing.
           backfill_from_prior_run() {
             local artifact_name="$1"
             local pkg_label="$2"
@@ -214,7 +276,6 @@ jobs:
 
             echo "Searching prior successful runs of workflow ${workflow_id} for artifact '${artifact_name}'..."
 
-            # Iterate over recent successful runs (excluding current), newest first
             local page=1
             while true; do
               local runs
@@ -224,10 +285,8 @@ jobs:
               [ -n "$runs" ] || break
 
               while IFS= read -r run_id; do
-                # Skip the current run
                 [ "$run_id" = "${{ github.run_id }}" ] && continue
 
-                # Check whether this run has the artifact we need
                 local artifact_id
                 artifact_id="$(gh api \
                   "repos/${{ github.repository }}/actions/runs/${run_id}/artifacts" \
@@ -245,7 +304,6 @@ jobs:
                 fi
               done <<< "$runs"
 
-              # If the page returned fewer than 20 results, we've exhausted all runs
               local count
               count="$(echo "$runs" | grep -c .)"
               [ "$count" -lt 20 ] && break
@@ -262,24 +320,24 @@ jobs:
 
           # --- cosmic-epoch-monorepo ---
           if has_pkg cosmic-epoch-monorepo; then
-            echo "cosmic-epoch-monorepo is present from the current run."
+            echo "cosmic-epoch-monorepo is present."
           elif [ "$IS_SCHEDULED" = "true" ]; then
             echo "::error::Scheduled run: cosmic-epoch-monorepo was not built in this run. Backfill is intentionally disabled for scheduled builds."
             exit 1
           else
-            echo "cosmic-epoch-monorepo missing from current run; attempting backfill..."
+            echo "cosmic-epoch-monorepo missing; attempting last-resort backfill..."
             backfill_from_prior_run "cosmic-epoch-deb" "cosmic-epoch-monorepo" \
               || echo "::warning::Backfill for cosmic-epoch-monorepo found no prior artifact."
           fi
 
           # --- cosmic-utils-monorepo ---
           if has_pkg cosmic-utils-monorepo; then
-            echo "cosmic-utils-monorepo is present from the current run."
+            echo "cosmic-utils-monorepo is present."
           elif [ "$IS_SCHEDULED" = "true" ]; then
             echo "::error::Scheduled run: cosmic-utils-monorepo was not built in this run. Backfill is intentionally disabled for scheduled builds."
             exit 1
           else
-            echo "cosmic-utils-monorepo missing from current run; attempting backfill..."
+            echo "cosmic-utils-monorepo missing; attempting last-resort backfill..."
             backfill_from_prior_run "cosmic-utils-deb" "cosmic-utils-monorepo" \
               || echo "::warning::Backfill for cosmic-utils-monorepo found no prior artifact."
           fi
