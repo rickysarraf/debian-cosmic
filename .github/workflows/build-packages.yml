@@ -232,7 +232,15 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
+          set -euo pipefail
           mkdir -p dist
+          artifact_count="$(gh api \
+            "repos/${{ github.repository }}/actions/runs/${{ steps.pr_run.outputs.run_id }}/artifacts" \
+            --jq '.total_count')"
+          if [[ "$artifact_count" == "0" ]]; then
+            echo "::warning::PR run ${{ steps.pr_run.outputs.run_id }} has no uploaded artifacts; continuing with local/fallback artifact resolution."
+            exit 0
+          fi
           gh run download "${{ steps.pr_run.outputs.run_id }}" \
             --repo "${{ github.repository }}" \
             --dir dist/
