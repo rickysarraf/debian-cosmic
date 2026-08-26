@@ -1,0 +1,50 @@
+From: Debian COSMIC Maintainers <debian-cosmic@debian.org>
+Subject: [PATCH 3/3] justfile: run applibrary and launcher recipes in-tree
+
+`just subdir/recipe` works for most epoch components, but
+`cosmic-applibrary` and `cosmic-launcher` delegate their build recipes
+through `cargo.just`. Under Debian testing's `just`, those delegated
+recipes run from the top-level checkout, so `cargo` looks for
+`/build/Cargo.toml` and fails.
+
+Invoke those two projects from within their own directories for both the
+build and install phases so their Cargo-based recipes resolve the
+correct manifests.
+--- a/justfile
++++ b/justfile
+@@ -5,7 +5,7 @@
+ build:
+     mkdir -p build
+     {{ just }} cosmic-applets/build-release
+-    {{ just }} cosmic-applibrary/build-release
++    cd cosmic-applibrary && {{ just }} build-release
+     {{ just }} cosmic-bg/build-release
+     {{ make }} -C cosmic-comp all
+     {{ just }} cosmic-edit/build-release
+@@ -13,7 +13,7 @@
+     {{ just }} cosmic-greeter/build-release
+     {{ just }} cosmic-idle/build-release
+     {{ just }} cosmic-initial-setup/build-release
+-    {{ just }} cosmic-launcher/build-release
++    cd cosmic-launcher && {{ just }} build-release
+     {{ just }} cosmic-monitor/build-release
+     {{ just }} cosmic-notifications/build-release
+     {{ just }} cosmic-osd/build-release
+@@ -33,7 +33,7 @@
+ 
+ install rootdir="" prefix="/usr/local": build
+     {{ just }} rootdir={{rootdir}} prefix={{prefix}} cosmic-applets/install
+-    {{ just }} rootdir={{rootdir}} prefix={{prefix}} cosmic-applibrary/install
++    cd cosmic-applibrary && {{ just }} rootdir={{rootdir}} prefix={{prefix}} install
+     {{ just }} rootdir={{rootdir}} prefix={{prefix}} cosmic-bg/install
+     {{ make }} -C cosmic-comp install DESTDIR={{rootdir}} prefix={{prefix}}
+     {{ just }} rootdir={{rootdir}} prefix={{prefix}} cosmic-edit/install
+@@ -42,7 +42,7 @@
+     {{ just }} rootdir={{rootdir}} prefix={{prefix}} cosmic-icons/install
+     {{ just }} rootdir={{rootdir}} prefix={{prefix}} cosmic-idle/install
+     {{ just }} rootdir={{rootdir}} prefix={{prefix}} cosmic-initial-setup/install
+-    {{ just }} rootdir={{rootdir}} prefix={{prefix}} cosmic-launcher/install
++    cd cosmic-launcher && {{ just }} rootdir={{rootdir}} prefix={{prefix}} install
+     {{ just }} rootdir={{rootdir}} prefix={{prefix}} cosmic-monitor/install
+     {{ just }} rootdir={{rootdir}} prefix={{prefix}} cosmic-notifications/install
+     {{ just }} rootdir={{rootdir}} prefix={{prefix}} cosmic-osd/install
