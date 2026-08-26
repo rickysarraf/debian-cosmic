@@ -36,7 +36,7 @@ RUN git config --global --add safe.directory /build && \
     git clone --recursive --branch epoch-1.7.0 https://github.com/pop-os/cosmic-epoch.git . && \
     patch -p1 < /patches/0001-justfile-use-just-for-xdg-desktop-portal-cosmic.patch && \
     patch -p1 < /patches/0002-cosmic-notifications-sigpipe-guard-and-libc-dep.patch && \
-    patch -p1 < /patches/0003-justfile-run-cosmic-applibrary-and-launcher-in-tree.patch
+    patch -p1 < /patches/0003-justfile-run-cargo-just-components-in-tree.patch
 
 # 3. Build and install FULL stack
 RUN mkdir -p /export/usr && \
