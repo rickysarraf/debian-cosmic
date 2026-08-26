@@ -1,4 +1,4 @@
-From: Debian COSMIC Maintainers <debian-cosmic@debian.org>
+From: Ritesh Raj Sarraf <rrs@debian.org>
 Subject: [PATCH 3/3] justfile: run applibrary and launcher recipes in-tree
 
 `just subdir/recipe` works for most epoch components, but
