@@ -1,4 +1,4 @@
-From: Debian COSMIC Maintainers <debian-cosmic@debian.org>
+From: Ritesh Raj Sarraf <rrs@debian.org>
 Subject: [PATCH 1/2] justfile: use just instead of make for xdg-desktop-portal-cosmic
 
 xdg-desktop-portal-cosmic dropped its Makefile in epoch-1.2.0 and
