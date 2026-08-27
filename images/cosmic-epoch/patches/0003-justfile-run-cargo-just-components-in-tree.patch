@@ -9,7 +9,11 @@ looks for `/build/Cargo.toml` and fails.
 
 Invoke those three projects from within their own directories for both
 the build and install phases so their Cargo-based recipes resolve the
-correct manifests.
+correct manifests.  Also run `xdgen` before `build-release` for each
+of those components so that desktop-entry and appstream metadata files
+are generated before the install phase tries to copy them.
+(`cosmic-settings` generates its xdgen outputs via its Cargo build.rs
+and does not need a separate xdgen step.)
 --- a/justfile
 +++ b/justfile
 @@ -5,7 +5,7 @@
@@ -17,7 +21,7 @@ correct manifests.
      mkdir -p build
      {{ just }} cosmic-applets/build-release
 -    {{ just }} cosmic-applibrary/build-release
-+    cd cosmic-applibrary && {{ just }} build-release
++    cd cosmic-applibrary && {{ just }} xdgen build-release
      {{ just }} cosmic-bg/build-release
      {{ make }} -C cosmic-comp all
      {{ just }} cosmic-edit/build-release
@@ -26,7 +30,7 @@ correct manifests.
      {{ just }} cosmic-idle/build-release
      {{ just }} cosmic-initial-setup/build-release
 -    {{ just }} cosmic-launcher/build-release
-+    cd cosmic-launcher && {{ just }} build-release
++    cd cosmic-launcher && {{ just }} xdgen build-release
      {{ just }} cosmic-monitor/build-release
      {{ just }} cosmic-notifications/build-release
      {{ just }} cosmic-osd/build-release
