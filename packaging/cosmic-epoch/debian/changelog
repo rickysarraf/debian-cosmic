@@ -1,3 +1,46 @@
+cosmic-epoch-monorepo (1.7.0-1) unstable; urgency=low
+
+  * New upstream release: Cosmic Epoch 1.7.0.
+    - Translation and dependency updates for many projects
+    - cosmic-comp:
+      - Always turn on the screen when the computer is unlocked
+      - Magnify the cursor when it is shaken to make it easy to locate
+      - Zoom will increase more with each keypress
+      - Scalable cursors (they will not be blurry when size is increased)
+    - cosmic-edit:
+      - Only select another tab if the currently selected tab is closed
+      - Do not allow clicking Cut and Copy menu buttons when no text is selected
+    - cosmic-files:
+      - Allow searching for applications in open with dialog
+      - Allow navigating to a network location from any location
+      - Fix application closing when modification time is invalid
+      - Improve network filesystem browsing performance
+      - Allow renaming sidebar favorites
+      - Fix alignment of file names in grid view
+    - cosmic-greeter:
+      - Allow log-in to continue when a non-fatal error message is returned by PAM
+    - cosmic-panel:
+      - Fix panel crashes
+    - cosmic-session:
+      - Make start-cosmic compatible with POSIX sh, removing bash dependency
+    - cosmic-settings:
+      - Fix refresh rate reverting to default when monitors are moved
+      - Add option to magnify cursor when it is shaken
+      - Disable move up and move down menu buttons for first and last keyboard layouts
+      - Remove unimplemented menu items from input page
+      - Add back navigation on bluetooth page when there are multiple adapters
+    - cosmic-settings-daemon:
+      - Fix low battery alert on systems without batteries
+    - cosmic-store:
+      - Do not scroll back button
+    - cosmic-wallpapers:
+      - Add COSMIC logo and logo pattern wallpapers
+    - xdg-desktop-portal-cosmic:
+      - Implement remote desktop portal (allows Steam Input keyboard/mouse control)
+      - Fix occasional failure to copy screenshots to clipboard
+
+ -- Ritesh Raj Sarraf <rrs@debian.org>  Wed, 26 Aug 2026 10:00:00 +0000
+
 cosmic-epoch-monorepo (1.6.0-1) unstable; urgency=low
 
   * New upstream release: Cosmic Epoch 1.6.0.

@@ -1,4 +1,4 @@
-From: Debian COSMIC Maintainers <debian-cosmic@debian.org>
+From: Ritesh Raj Sarraf <rrs@debian.org>
 Subject: [PATCH 2/2] cosmic-notifications: add SIGPIPE guard and libc dependency
 
 When Wayland or D-Bus disconnects, cosmic-notifications can receive a
