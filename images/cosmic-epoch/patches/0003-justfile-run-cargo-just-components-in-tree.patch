@@ -21,7 +21,7 @@ and does not need a separate xdgen step.)
      mkdir -p build
      {{ just }} cosmic-applets/build-release
 -    {{ just }} cosmic-applibrary/build-release
-+    cd cosmic-applibrary && {{ just }} xdgen build-release
++    cd cosmic-applibrary && {{ just }} xdgen && {{ just }} build-release
      {{ just }} cosmic-bg/build-release
      {{ make }} -C cosmic-comp all
      {{ just }} cosmic-edit/build-release
@@ -30,7 +30,7 @@ and does not need a separate xdgen step.)
      {{ just }} cosmic-idle/build-release
      {{ just }} cosmic-initial-setup/build-release
 -    {{ just }} cosmic-launcher/build-release
-+    cd cosmic-launcher && {{ just }} xdgen build-release
++    cd cosmic-launcher && {{ just }} xdgen && {{ just }} build-release
      {{ just }} cosmic-monitor/build-release
      {{ just }} cosmic-notifications/build-release
      {{ just }} cosmic-osd/build-release
