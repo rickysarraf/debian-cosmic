@@ -41,8 +41,65 @@ jobs:
             utils:
               - 'images/cosmic-utils/**'
 
+  # Resolve the workflow run ID from the PR that was merged into main (push
+  # events only).  Both build-and-push and release consume this output to
+  # avoid repeating the expensive API lookup.
+  resolve-pr-run:
+    if: github.event.action != 'closed'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      actions: read
+    outputs:
+      run_id: ${{ steps.lookup.outputs.run_id }}
+    steps:
+      - name: Look up PR workflow run ID
+        id: lookup
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+
+          # Only meaningful for push-to-main; for all other events there is no
+          # merged PR to look up.
+          if [[ "${{ github.event_name }}" != "push" ]]; then
+            echo "run_id=" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          workflow_id="$(gh api \
+            "repos/${{ github.repository }}/actions/runs/${{ github.run_id }}" \
+            --jq '.workflow_id')"
+
+          # Find the PR(s) whose merge commit is github.sha.
+          pr_head_sha="$(gh api \
+            "repos/${{ github.repository }}/commits/${{ github.sha }}/pulls" \
+            --jq '.[0].head.sha // empty' 2>/dev/null || true)"
+
+          if [[ -z "$pr_head_sha" ]]; then
+            echo "No PR found for commit ${{ github.sha }}; skipping PR run lookup."
+            echo "run_id=" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          echo "Resolved PR head SHA: ${pr_head_sha}"
+
+          # Find the most recent successful workflow run for that PR head SHA.
+          pr_run_id="$(gh api \
+            "repos/${{ github.repository }}/actions/workflows/${workflow_id}/runs?head_sha=${pr_head_sha}&status=success&per_page=5" \
+            --jq '.workflow_runs | sort_by(.run_number) | reverse | .[0].id // empty' \
+            2>/dev/null || true)"
+
+          if [[ -z "$pr_run_id" ]]; then
+            echo "::warning::No successful workflow run found for PR head SHA ${pr_head_sha}."
+            echo "run_id=" >> "$GITHUB_OUTPUT"
+          else
+            echo "Found PR workflow run ID: ${pr_run_id}"
+            echo "run_id=${pr_run_id}" >> "$GITHUB_OUTPUT"
+          fi
+
   build-and-push:
-    needs: changes
+    needs: [changes, resolve-pr-run]
     if: github.event.action != 'closed'
     runs-on: ubuntu-latest
     strategy:
@@ -59,6 +116,7 @@ jobs:
     permissions:
       contents: read
       packages: write
+      actions: read
 
     steps:
       # job-level `if:` cannot see the `matrix` context, so the per-leg
@@ -67,17 +125,48 @@ jobs:
       # never forces the ~5h cosmic-epoch rebuild) is done here as a step output,
       # and every subsequent step is gated on it.
       #
-      # Scheduled weekly runs intentionally bypass the path-filter optimisation
-      # and always rebuild both packages from scratch.  Debian Testing/Unstable
-      # is a moving-target distribution, so the purpose of the Friday 23:59 UTC
+      # Scheduled weekly runs intentionally bypass all optimisations and always
+      # rebuild both packages from scratch.  Debian Testing/Unstable is a
+      # moving-target distribution, so the purpose of the Friday 23:59 UTC
       # build is to produce freshly built .deb artifacts against the current
       # dependency state — reusing a cached/skipped build would defeat that goal.
+      #
+      # For push-to-main (merge) events: if the resolve-pr-run job already
+      # identified a successful prior run that uploaded the artifact for this
+      # matrix leg, skip rebuilding entirely — the PR already did the work.
       - name: Determine whether to build this matrix leg
         id: gate
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
+          set -euo pipefail
+
+          ARTIFACT_NAME="${{ matrix.name }}-deb"
+          PR_RUN_ID="${{ needs.resolve-pr-run.outputs.run_id }}"
+
           if [[ "${{ github.event_name }}" == "schedule" || "${{ github.event_name }}" == "workflow_dispatch" ]]; then
             echo "should_build=true" >> "$GITHUB_OUTPUT"
-          elif [[ "${{ matrix.name }}" == "cosmic-epoch" && "${{ needs.changes.outputs.epoch }}" == "true" ]]; then
+            exit 0
+          fi
+
+          # On push-to-main: check whether the merged PR's run already
+          # uploaded the artifact for this leg.  If so, skip the rebuild.
+          if [[ "${{ github.event_name }}" == "push" && -n "$PR_RUN_ID" ]]; then
+            artifact_id="$(gh api \
+              "repos/${{ github.repository }}/actions/runs/${PR_RUN_ID}/artifacts" \
+              --jq ".artifacts[] | select(.name == \"${ARTIFACT_NAME}\") | .id" \
+              2>/dev/null | head -n1 || true)"
+            if [[ -n "$artifact_id" ]]; then
+              echo "Artifact '${ARTIFACT_NAME}' already exists in PR run ${PR_RUN_ID} (id ${artifact_id}). Skipping rebuild."
+              echo "should_build=false" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+            echo "::notice::Artifact '${ARTIFACT_NAME}' not found in PR run ${PR_RUN_ID}; falling through to path-filter check."
+          fi
+
+          # Fall back to path-filter for pull_request, wip/* push, or when no
+          # prior PR run was resolved.
+          if [[ "${{ matrix.name }}" == "cosmic-epoch" && "${{ needs.changes.outputs.epoch }}" == "true" ]]; then
             echo "should_build=true" >> "$GITHUB_OUTPUT"
           elif [[ "${{ matrix.name }}" == "cosmic-utils" && "${{ needs.changes.outputs.utils }}" == "true" ]]; then
             echo "should_build=true" >> "$GITHUB_OUTPUT"
@@ -160,7 +249,7 @@ jobs:
           path: dist/*.deb
 
   release:
-    needs: build-and-push
+    needs: [build-and-push, resolve-pr-run]
     # build-and-push may legitimately be skipped for one or both matrix legs
     # (path-filtered runs); only fail release if a leg that *did* run failed.
     if: |
@@ -178,73 +267,27 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      # When a PR merges into main and the path-filter skips the build, no
-      # artifacts are produced by the current run.  This step resolves the
-      # workflow run ID of the merged PR so we can download its artifacts
-      # directly instead of relying on a brute-force search of prior runs.
-      - name: Resolve merged PR workflow run ID
-        id: pr_run
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          set -euo pipefail
-
-          # Only attempt PR resolution on push-to-main; for schedule /
-          # workflow_dispatch there is no associated PR to look up.
-          if [[ "${{ github.event_name }}" != "push" ]]; then
-            echo "run_id=" >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
-
-          workflow_id="$(gh api \
-            "repos/${{ github.repository }}/actions/runs/${{ github.run_id }}" \
-            --jq '.workflow_id')"
-
-          # Find the PR(s) associated with the merge commit on main.
-          pr_head_sha="$(gh api \
-            "repos/${{ github.repository }}/commits/${{ github.sha }}/pulls" \
-            --jq '.[0].head.sha // empty' 2>/dev/null || true)"
-
-          if [[ -z "$pr_head_sha" ]]; then
-            echo "No PR found for commit ${{ github.sha }}; skipping PR run lookup."
-            echo "run_id=" >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
-
-          echo "Resolved PR head SHA: ${pr_head_sha}"
-
-          # Find the most recent successful workflow run for that PR head SHA.
-          pr_run_id="$(gh api \
-            "repos/${{ github.repository }}/actions/workflows/${workflow_id}/runs?head_sha=${pr_head_sha}&status=success&per_page=5" \
-            --jq '.workflow_runs | sort_by(.run_number) | reverse | .[0].id // empty' \
-            2>/dev/null || true)"
-
-          if [[ -z "$pr_run_id" ]]; then
-            echo "::warning::No successful workflow run found for PR head SHA ${pr_head_sha}."
-            echo "run_id=" >> "$GITHUB_OUTPUT"
-          else
-            echo "Found PR workflow run ID: ${pr_run_id}"
-            echo "run_id=${pr_run_id}" >> "$GITHUB_OUTPUT"
-          fi
-
+      # resolve-pr-run (a shared job) already resolved the PR run ID for this
+      # merge commit; reuse it here to download PR artifacts without a
+      # duplicate API lookup.
       - name: Download artifacts from PR run
-        if: steps.pr_run.outputs.run_id != ''
+        if: needs.resolve-pr-run.outputs.run_id != ''
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
           mkdir -p dist
           artifact_count="$(gh api \
-            "repos/${{ github.repository }}/actions/runs/${{ steps.pr_run.outputs.run_id }}/artifacts" \
+            "repos/${{ github.repository }}/actions/runs/${{ needs.resolve-pr-run.outputs.run_id }}/artifacts" \
             --jq '.total_count')"
           if [[ "$artifact_count" == "0" ]]; then
-            echo "::warning::PR run ${{ steps.pr_run.outputs.run_id }} has no uploaded artifacts; continuing with local/fallback artifact resolution."
+            echo "::warning::PR run ${{ needs.resolve-pr-run.outputs.run_id }} has no uploaded artifacts; continuing with local/fallback artifact resolution."
             exit 0
           fi
-          gh run download "${{ steps.pr_run.outputs.run_id }}" \
+          gh run download "${{ needs.resolve-pr-run.outputs.run_id }}" \
             --repo "${{ github.repository }}" \
             --dir dist/
-          echo "Downloaded artifacts from PR run ${{ steps.pr_run.outputs.run_id }}:"
+          echo "Downloaded artifacts from PR run ${{ needs.resolve-pr-run.outputs.run_id }}:"
           ls -la dist/ || true
 
       - name: Download all artifacts
