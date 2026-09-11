@@ -1,3 +1,57 @@
+cosmic-epoch-monorepo (1.8.0-1) unstable; urgency=low
+
+  * New upstream release: Cosmic Epoch 1.8.0.
+    - Translation and dependency updates for many projects
+    - cosmic-applets:
+      - Fix microphone volume applying to speaker instead of microphone
+      - Show custom bluetooth device name
+      - Fix pixelated icons
+    - cosmic-app-library:
+      - Center app names
+      - Fix packaging issues
+    - cosmic-comp:
+      - Update Smithay to improve mouse capture
+      - Allow X11 windows to start minimized
+      - Fix screenshot tool crash due to corner radius issues
+      - Configurable server-side decorations
+      - Check all connectors for primary GPU to fix hybrid GPU issues
+      - Do not magnify cursor when grabbing a window
+      - Fix sluggish Steam overlays with continuous X11 frame callbacks
+      - Update EI modifiers on keyboard layout changes for cosmic-osk
+      - Support grabs on touch input to vastly improve touchscreen support
+      - Align corner radii order with the active theme
+      - Sort outputs by connector for consistent layout fallback
+      - Fix blur region alignment with app library window
+    - cosmic-files:
+      - Fix drag select rectangle redraw
+      - Switch to another tab only if active tab is closed
+    - cosmic-greeter:
+      - Multi-factor authentication fixes
+      - Fix compiling without logind feature
+    - cosmic-icons:
+      - Update web-browser-symbolic and add printer-queue-symbolic icons
+    - cosmic-launcher:
+      - Fix packaging issues
+    - cosmic-osd:
+      - Add on-screen display for keyboard layout changes
+    - cosmic-panel:
+      - Synchronize border radius for container and background
+    - cosmic-player:
+      - Fix playback of files with invalid framerates
+    - cosmic-settings:
+      - Preserve scroll position when searching and opening submenus
+      - Fix display page redrawing while dragging displays
+      - Support renaming bluetooth devices
+    - cosmic-settings-daemon:
+      - Check every AC power input to determine AC connection status
+      - Fix external monitor brightness lagging
+    - cosmic-workspaces-epoch:
+      - Fix window disappearing when dropped on the same workspace
+    - xdg-desktop-portal-cosmic:
+      - Do not panic when low-level Wayland errors can be ignored
+
+ -- Ritesh Raj Sarraf <rrs@debian.org>  Fri, 11 Sep 2026 10:00:00 +0000
+
 cosmic-epoch-monorepo (1.7.0-1) unstable; urgency=low
 
   * New upstream release: Cosmic Epoch 1.7.0.
