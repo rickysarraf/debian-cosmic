@@ -1,3 +1,69 @@
+cosmic-epoch-monorepo (1.9.0-1) unstable; urgency=low
+
+  * New upstream release: Cosmic Epoch 1.9.0.
+    - Translation and dependency updates for many projects
+    - cosmic-viewer:
+      - Initial release of COSMIC Image Viewer with multi-format support and built-in editing
+    - cosmic-osk:
+      - Initial release of COSMIC On-Screen Keyboard with touch and gamepad input support
+    - cosmic-applets:
+      - Add on-screen keyboard applet for toggling OSK on demand
+      - Fix panic on an audio sink or source being removed
+    - cosmic-app-library:
+      - Fix pixelated icons
+      - Fix context menu in search box not working
+    - cosmic-bg:
+      - Use cosmic-bg to show background on lock screen via new Wayland protocol
+    - cosmic-comp:
+      - Allow layer shell programs (background, OSK) on lock screen
+      - Fix context menus in app library and launcher
+      - Fix super key getting stuck when launcher is opened
+      - Fix escape key not closing menus
+      - Fix maximized windows reverting size on focus
+      - Do not load shortcuts when running login screen
+    - cosmic-edit:
+      - Fix escape key not closing menus
+    - cosmic-files:
+      - Replace custom context menu code with libcosmic context menu
+      - Fix drag selection box not updating
+      - Show icons for .exe files
+      - Save file dialog sort setting
+      - Fix context menu issues when shift is held
+      - Fix escape key not closing menus
+    - cosmic-greeter:
+      - Use cosmic-bg to show background on lock screen
+      - Optional support for systemd-homed
+      - Add button to toggle on-screen keyboard
+    - cosmic-launcher:
+      - Fix pixelated icons
+      - Fix text input context menu not working
+    - cosmic-monitor:
+      - Dashboard layout improvements and maintenance
+    - cosmic-notifications:
+      - Hide visible notifications when do not disturb is enabled
+    - cosmic-panel:
+      - Configurable border thickness
+      - Fix Wayland protocol error when applets create layer shell surfaces
+    - cosmic-session:
+      - Set COSMIC_VERSION variable
+      - Fix start-cosmic script when using nushell
+      - Depend on and auto-start cosmic-osk
+      - Fix compilation when autologin is used without systemd
+      - Recommend cosmic-viewer and set as default image viewer
+    - cosmic-settings:
+      - Show COSMIC version in about page
+      - Add on-screen keyboard settings
+      - Fix issues with WireGuard
+      - Add toggle for showing day of the week
+    - cosmic-settings-daemon:
+      - Sync font settings for GNOME applications
+    - cosmic-store:
+      - Add developer name to cards and UI adjustments
+    - cosmic-term:
+      - Fix escape key not closing menus
+
+ -- Ritesh Raj Sarraf <rrs@debian.org>  Wed, 23 Sep 2026 10:00:00 +0000
+
 cosmic-epoch-monorepo (1.8.0-1) unstable; urgency=low
 
   * New upstream release: Cosmic Epoch 1.8.0.
