@@ -149,19 +149,27 @@ jobs:
             exit 0
           fi
 
-          # On push-to-main: check whether the merged PR's run already
-          # uploaded the artifact for this leg.  If so, skip the rebuild.
+          # On push-to-main: either reuse a complete pair of artifacts from the
+          # merged PR run, or rebuild both legs on main. Releasing a mixed or
+          # stale pair is worse than paying one rebuild on merge.
           if [[ "${{ github.event_name }}" == "push" && -n "$PR_RUN_ID" ]]; then
-            artifact_id="$(gh api \
+            artifacts="$(gh api \
               "repos/${{ github.repository }}/actions/runs/${PR_RUN_ID}/artifacts" \
-              --jq ".artifacts[] | select(.name == \"${ARTIFACT_NAME}\") | .id" \
-              2>/dev/null | head -n1 || true)"
-            if [[ -n "$artifact_id" ]]; then
-              echo "Artifact '${ARTIFACT_NAME}' already exists in PR run ${PR_RUN_ID} (id ${artifact_id}). Skipping rebuild."
+              --jq '.artifacts[].name' 2>/dev/null || true)"
+            if grep -Fxq "cosmic-epoch-deb" <<<"$artifacts" && grep -Fxq "cosmic-utils-deb" <<<"$artifacts"; then
+              echo "PR run ${PR_RUN_ID} already contains both package artifacts. Skipping rebuild."
               echo "should_build=false" >> "$GITHUB_OUTPUT"
               exit 0
             fi
-            echo "::notice::Artifact '${ARTIFACT_NAME}' not found in PR run ${PR_RUN_ID}; falling through to path-filter check."
+            echo "::notice::PR run ${PR_RUN_ID} does not contain both package artifacts; rebuilding both legs on main."
+            echo "should_build=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          if [[ "${{ github.event_name }}" == "push" ]]; then
+            echo "::notice::No PR run was resolved for this push; rebuilding both legs on main."
+            echo "should_build=true" >> "$GITHUB_OUTPUT"
+            exit 0
           fi
 
           # Fall back to path-filter for pull_request, wip/* push, or when no
@@ -276,7 +284,7 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
-          mkdir -p dist
+          mkdir -p dist/pr-run
           artifact_count="$(gh api \
             "repos/${{ github.repository }}/actions/runs/${{ needs.resolve-pr-run.outputs.run_id }}/artifacts" \
             --jq '.total_count')"
@@ -286,14 +294,14 @@ jobs:
           fi
           gh run download "${{ needs.resolve-pr-run.outputs.run_id }}" \
             --repo "${{ github.repository }}" \
-            --dir dist/
+            --dir dist/pr-run/
           echo "Downloaded artifacts from PR run ${{ needs.resolve-pr-run.outputs.run_id }}:"
-          ls -la dist/ || true
+          find dist/pr-run -maxdepth 3 -type f | sort || true
 
       - name: Download all artifacts
         uses: actions/download-artifact@v4
         with:
-          path: dist/
+          path: dist/current-run/
           merge-multiple: true
 
       - name: Ensure both package artifacts are present for release
@@ -303,6 +311,20 @@ jobs:
           set -euo pipefail
           shopt -s nullglob
           mkdir -p dist
+
+          stage_debs() {
+            local source_root="$1"
+            [ -d "$source_root" ] || return 0
+
+            find "$source_root" -type f -name '*.deb' | while IFS= read -r deb; do
+              local pkg ver arch target
+              pkg="$(dpkg-deb -f "$deb" Package)"
+              ver="$(dpkg-deb -f "$deb" Version | tr ':' '_')"
+              arch="$(dpkg-deb -f "$deb" Architecture)"
+              target="dist/${pkg}_${ver}_${arch}.deb"
+              cp -f "$deb" "$target"
+            done
+          }
 
           # Returns 0 if a .deb with the given Package header exists in dist/
           has_pkg() {
@@ -314,83 +336,35 @@ jobs:
             return 1
           }
 
-          # Last-resort fallback: brute-force search of prior successful runs.
-          # This covers edge cases such as workflow_dispatch on main with no
-          # associated PR, or when the PR run lookup above found nothing.
-          backfill_from_prior_run() {
-            local artifact_name="$1"
-            local pkg_label="$2"
-            local workflow_id
-            workflow_id="$(gh api \
-              "repos/${{ github.repository }}/actions/runs/${{ github.run_id }}" \
-              --jq '.workflow_id')"
-
-            echo "Searching prior successful runs of workflow ${workflow_id} for artifact '${artifact_name}'..."
-
-            local page=1
-            while true; do
-              local runs
-              runs="$(gh api \
-                "repos/${{ github.repository }}/actions/workflows/${workflow_id}/runs?status=success&per_page=20&page=${page}" \
-                --jq '.workflow_runs[].id')"
-              [ -n "$runs" ] || break
-
-              while IFS= read -r run_id; do
-                [ "$run_id" = "${{ github.run_id }}" ] && continue
-
-                local artifact_id
-                artifact_id="$(gh api \
-                  "repos/${{ github.repository }}/actions/runs/${run_id}/artifacts" \
-                  --jq ".artifacts[] | select(.name == \"${artifact_name}\") | .id" \
-                  2>/dev/null | head -n1 || true)"
-
-                if [ -n "$artifact_id" ]; then
-                  echo "Found '${artifact_name}' in run ${run_id} (artifact id ${artifact_id}). Backfilling ${pkg_label}..."
-                  gh run download "$run_id" \
-                    --repo "${{ github.repository }}" \
-                    --name "$artifact_name" \
-                    --dir dist/
-                  echo "::notice::${pkg_label} was backfilled from prior run ${run_id} (artifact '${artifact_name}')."
-                  return 0
-                fi
-              done <<< "$runs"
-
-              local count
-              count="$(echo "$runs" | grep -c .)"
-              [ "$count" -lt 20 ] && break
-              page=$((page + 1))
+          pkg_version() {
+            local want="$1" deb pkg
+            for deb in dist/*.deb; do
+              pkg="$(dpkg-deb -f "$deb" Package 2>/dev/null || true)"
+              if [ "$pkg" = "$want" ]; then
+                dpkg-deb -f "$deb" Version
+                return 0
+              fi
             done
-
-            echo "::warning::No prior successful run found that uploaded artifact '${artifact_name}'." >&2
             return 1
           }
 
-          # Scheduled runs must publish freshly built artifacts only; backfilling
-          # an older artifact would defeat the purpose of the weekly freshness build.
-          IS_SCHEDULED="${{ github.event_name == 'schedule' }}"
+          stage_debs dist/pr-run
+          stage_debs dist/current-run
 
           # --- cosmic-epoch-monorepo ---
           if has_pkg cosmic-epoch-monorepo; then
             echo "cosmic-epoch-monorepo is present."
-          elif [ "$IS_SCHEDULED" = "true" ]; then
-            echo "::error::Scheduled run: cosmic-epoch-monorepo was not built in this run. Backfill is intentionally disabled for scheduled builds."
-            exit 1
           else
-            echo "cosmic-epoch-monorepo missing; attempting last-resort backfill..."
-            backfill_from_prior_run "cosmic-epoch-deb" "cosmic-epoch-monorepo" \
-              || echo "::warning::Backfill for cosmic-epoch-monorepo found no prior artifact."
+            echo "::error::cosmic-epoch-monorepo is missing from the current run and any resolved PR run." >&2
+            exit 1
           fi
 
           # --- cosmic-utils-monorepo ---
           if has_pkg cosmic-utils-monorepo; then
             echo "cosmic-utils-monorepo is present."
-          elif [ "$IS_SCHEDULED" = "true" ]; then
-            echo "::error::Scheduled run: cosmic-utils-monorepo was not built in this run. Backfill is intentionally disabled for scheduled builds."
-            exit 1
           else
-            echo "cosmic-utils-monorepo missing; attempting last-resort backfill..."
-            backfill_from_prior_run "cosmic-utils-deb" "cosmic-utils-monorepo" \
-              || echo "::warning::Backfill for cosmic-utils-monorepo found no prior artifact."
+            echo "::error::cosmic-utils-monorepo is missing from the current run and any resolved PR run." >&2
+            exit 1
           fi
 
           # Final guard: require both packages
@@ -403,6 +377,32 @@ jobs:
             ls -la dist/ >&2 || true
             exit 1
           fi
+
+          epoch_ver="$(pkg_version cosmic-epoch-monorepo)"
+          utils_ver="$(pkg_version cosmic-utils-monorepo)"
+          expected_prefix="${{ env.BASE_VERSION }}.build"
+
+          case "$epoch_ver" in
+            "${expected_prefix}"*) ;;
+            *)
+              echo "::error::cosmic-epoch-monorepo version '$epoch_ver' does not match expected prefix '${expected_prefix}'." >&2
+              exit 1
+              ;;
+          esac
+
+          case "$utils_ver" in
+            "${expected_prefix}"*) ;;
+            *)
+              echo "::error::cosmic-utils-monorepo version '$utils_ver' does not match expected prefix '${expected_prefix}'." >&2
+              exit 1
+              ;;
+          esac
+
+          if [ "$epoch_ver" != "$utils_ver" ]; then
+            echo "::error::Package version mismatch: cosmic-epoch-monorepo=$epoch_ver cosmic-utils-monorepo=$utils_ver" >&2
+            exit 1
+          fi
+
           echo "Both packages are present in dist/. Proceeding with release."
 
       - name: Normalize .deb filenames with package version
@@ -425,9 +425,25 @@ jobs:
             echo "No .deb artifacts found in dist/" >&2
             exit 1
           fi
-          # This run's version. A backfilled sibling from the previous
-          # release may carry an older Version; do not fail the combo.
-          rel_ver="${{ env.BASE_VERSION }}.build${{ github.run_number }}"
+          epoch_pkg=""
+          utils_pkg=""
+          for deb in "${debs[@]}"; do
+            pkg="$(dpkg-deb -f "$deb" Package)"
+            case "$pkg" in
+              cosmic-epoch-monorepo) epoch_pkg="$deb" ;;
+              cosmic-utils-monorepo) utils_pkg="$deb" ;;
+            esac
+          done
+          if [ -z "$epoch_pkg" ] || [ -z "$utils_pkg" ]; then
+            echo "Expected both cosmic-epoch-monorepo and cosmic-utils-monorepo in dist/" >&2
+            exit 1
+          fi
+          rel_ver="$(dpkg-deb -f "$epoch_pkg" Version)"
+          utils_ver="$(dpkg-deb -f "$utils_pkg" Version)"
+          if [ "$rel_ver" != "$utils_ver" ]; then
+            echo "Release metadata version mismatch: cosmic-epoch-monorepo=$rel_ver cosmic-utils-monorepo=$utils_ver" >&2
+            exit 1
+          fi
           echo "release_version=$rel_ver" >> "$GITHUB_OUTPUT"
 
       - name: Create GitHub Release
