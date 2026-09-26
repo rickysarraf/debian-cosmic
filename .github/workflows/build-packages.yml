@@ -131,17 +131,15 @@ jobs:
       # build is to produce freshly built .deb artifacts against the current
       # dependency state — reusing a cached/skipped build would defeat that goal.
       #
-      # For push-to-main (merge) events: if the resolve-pr-run job already
-      # identified a successful prior run that uploaded the artifact for this
-      # matrix leg, skip rebuilding entirely — the PR already did the work.
+      # For push-to-main (merge) events: either reuse a complete pair of
+      # artifacts from the merged PR run or rebuild both legs on main so the
+      # release never mixes stale and fresh packages.
       - name: Determine whether to build this matrix leg
         id: gate
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
-
-          ARTIFACT_NAME="${{ matrix.name }}-deb"
           PR_RUN_ID="${{ needs.resolve-pr-run.outputs.run_id }}"
 
           if [[ "${{ github.event_name }}" == "schedule" || "${{ github.event_name }}" == "workflow_dispatch" ]]; then
