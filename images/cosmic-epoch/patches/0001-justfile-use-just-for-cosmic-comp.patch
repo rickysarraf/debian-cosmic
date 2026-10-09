@@ -1,0 +1,25 @@
+Subject: [PATCH] justfile: use Just for cosmic-comp build and install
+
+cosmic-comp no longer provides a Makefile in epoch-1.10.0. Run its
+Just recipes in-tree so the imported Cargo recipes use the component's
+manifest, and preserve rootdir and prefix for staged installation.
+--- a/justfile
++++ b/justfile
+@@ -7,7 +7,7 @@
+     {{ just }} cosmic-applets/build-release
+     cd cosmic-app-library && {{ just }} build-release
+     {{ just }} cosmic-bg/build-release
+-    {{ make }} -C cosmic-comp all
++    cd cosmic-comp && {{ just }} build-release
+     {{ just }} cosmic-edit/build-release
+     {{ just }} cosmic-files/build-release
+     {{ just }} cosmic-greeter/build-release
+@@ -37,7 +37,7 @@
+     {{ just }} rootdir={{rootdir}} prefix={{prefix}} cosmic-applets/install
+     {{ just }} rootdir={{rootdir}} prefix={{prefix}} cosmic-app-library/install
+     {{ just }} rootdir={{rootdir}} prefix={{prefix}} cosmic-bg/install
+-    {{ make }} -C cosmic-comp install DESTDIR={{rootdir}} prefix={{prefix}}
++    cd cosmic-comp && {{ just }} rootdir={{rootdir}} prefix={{prefix}} install
+     {{ just }} rootdir={{rootdir}} prefix={{prefix}} cosmic-edit/install
+     {{ just }} rootdir={{rootdir}} prefix={{prefix}} cosmic-files/install
+     {{ just }} rootdir={{rootdir}} prefix={{prefix}} cosmic-greeter/install
