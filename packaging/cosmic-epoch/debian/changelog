@@ -1,3 +1,65 @@
+cosmic-epoch-monorepo (1.10.0-1) unstable; urgency=low
+
+  * New upstream release: Cosmic Epoch 1.10.0.
+    - Translation and dependency updates for many projects
+    - cosmic-comp:
+      - Fix focus not being removed from unfocused windows
+      - Fix window context menu items being selected when clicking outside the menu
+      - Fix resizing not working in some cases while tiling
+      - Fix screen capture using an inefficient pixel format
+      - Focus windows on touchscreen events
+      - Migrate from building with make to just
+      - Only try to use systemd-journald when built with the systemd feature
+      - Fix COSMIC dmabuf programs (cosmic-panel, cosmic-workspaces) using the
+        NVIDIA GPU on hybrid graphics systems
+    - cosmic-edit:
+      - Update information in About page
+    - cosmic-files:
+      - Ellipsize full path in search results to keep it from being truncated
+      - Update information in About page
+      - Add trailing '...' to menu items that open a context drawer
+    - cosmic-greeter:
+      - Add conflict with kmscon to systemd service (mostly for Fedora packaging)
+      - Do not panic if keyboard layouts is empty (already released in 1.9.1)
+      - Cancel the PAM session on a wrong password so pam_faillock works
+    - cosmic-idle:
+      - Fix the system suspending on AC when configured not to
+    - cosmic-initial-setup:
+      - Only show the WiFi page if a WiFi device exists
+    - cosmic-launcher:
+      - Use WGPU for rendering to improve performance
+    - cosmic-monitor:
+      - Make app and process searches separate
+      - Update information in About page
+    - cosmic-osd:
+      - Do not show volume OSD when started
+    - cosmic-player:
+      - Keep controls visible when hovered
+    - cosmic-session:
+      - Allow using custom SSH agents
+      - Support setting environment variables in ~/.config/environment.d
+      - Fix building without systemd feature
+    - cosmic-settings:
+      - Do not set interface font for GNOME (now set by cosmic-settings-daemon)
+      - Fix enter key not doing anything when adding a WireGuard connection
+      - Add settings for mapping drawing tablets to displays
+    - cosmic-settings-daemon:
+      - Do not add kdeglobals to flatpak overrides
+      - Fix compilation with musl libc
+      - Migrate building from make to just
+      - Include font size when syncing font settings with GTK
+      - Reconnect to pipewire after errors
+    - cosmic-store:
+      - Fix missing app icons
+      - Add gallery mode after clicking screenshots and cache screenshots locally
+    - cosmic-term:
+      - Add keyboard shortcuts for moving tabs left and right
+      - Update information in About page
+    - xdg-desktop-portal-cosmic:
+      - Fix sort options not being remembered in file open/save dialogs
+
+ -- Ritesh Raj Sarraf <rrs@debian.org>  Thu, 08 Oct 2026 10:00:00 +0000
+
 cosmic-epoch-monorepo (1.9.0-1) unstable; urgency=low
 
   * New upstream release: Cosmic Epoch 1.9.0.
