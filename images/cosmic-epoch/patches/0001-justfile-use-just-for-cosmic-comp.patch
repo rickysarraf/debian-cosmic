@@ -1,8 +1,8 @@
-Subject: [PATCH] justfile: use Just for cosmic-comp build and install
+Subject: [PATCH] justfile: use Just for migrated component builds and installs
 
-cosmic-comp no longer provides a Makefile in epoch-1.10.0. Run its
-Just recipes in-tree so the imported Cargo recipes use the component's
-manifest, and preserve rootdir and prefix for staged installation.
+cosmic-comp and cosmic-settings-daemon no longer provide Makefiles in
+epoch-1.10.0. Run their Just recipes in-tree, and preserve rootdir and
+prefix for staged installation.
 --- a/justfile
 +++ b/justfile
 @@ -7,7 +7,7 @@
@@ -14,6 +14,15 @@ manifest, and preserve rootdir and prefix for staged installation.
      {{ just }} cosmic-edit/build-release
      {{ just }} cosmic-files/build-release
      {{ just }} cosmic-greeter/build-release
+@@ -22,7 +22,7 @@
+     {{ just }} cosmic-randr/build-release
+     {{ just }} cosmic-screenshot/build-release
+     cd cosmic-settings && {{ just }} build-release
+-    {{ make }} -C cosmic-settings-daemon all
++    cd cosmic-settings-daemon && {{ just }} build-release
+     {{ just }} cosmic-session/build-release
+     {{ just }} cosmic-store/build-release
+     {{ just }} cosmic-term/build-release
 @@ -37,7 +37,7 @@
      {{ just }} rootdir={{rootdir}} prefix={{prefix}} cosmic-applets/install
      {{ just }} rootdir={{rootdir}} prefix={{prefix}} cosmic-app-library/install
@@ -23,3 +32,12 @@ manifest, and preserve rootdir and prefix for staged installation.
      {{ just }} rootdir={{rootdir}} prefix={{prefix}} cosmic-edit/install
      {{ just }} rootdir={{rootdir}} prefix={{prefix}} cosmic-files/install
      {{ just }} rootdir={{rootdir}} prefix={{prefix}} cosmic-greeter/install
+@@ -51,7 +51,7 @@
+     {{ just }} rootdir={{rootdir}} prefix={{prefix}} cosmic-randr/install
+     {{ just }} rootdir={{rootdir}} prefix={{prefix}} cosmic-screenshot/install
+     {{ just }} rootdir={{rootdir}} prefix={{prefix}} cosmic-settings/install
+-    {{ make }} -C cosmic-settings-daemon install DESTDIR={{rootdir}} prefix={{prefix}}
++    cd cosmic-settings-daemon && {{ just }} rootdir={{rootdir}} prefix={{prefix}} install
+     {{ just }} rootdir={{rootdir}} prefix={{prefix}} cosmic-session/install
+     {{ just }} rootdir={{rootdir}} prefix={{prefix}} cosmic-store/install
+     {{ just }} rootdir={{rootdir}} prefix={{prefix}} cosmic-term/install
