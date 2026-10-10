@@ -36,12 +36,16 @@ this same workflow and repository. The resolver checks the complete `images/`
 and root `packaging/` Git trees, the full reusable build recipe
 (`.github/workflows/package-build.yml`), the caller's build job and global build
 settings, and the resolver itself. Documentation and reuse-orchestration changes
-alone do not invalidate the build inputs. Runner OS/architecture and hosted-runner
-image versions are also compared conservatively. Keep `BASE_VERSION` and the build
+alone do not invalidate the build inputs. Builder runner OS/architecture and hosted
+image OS/version are recorded separately and must match the resolver and release
+runners conservatively for cross-run reuse. Fresh current-run packages instead
+require valid Ubuntu/Linux x64 builder provenance; their matrix legs and release
+runner may use different hosted image versions. Keep `BASE_VERSION` and the build
 caller's `base_version` synchronized when updating versions.
 
-Each full main build records its run/attempt, input fingerprint, exact package
-version and SHA256, and preserved GHCR manifest digest in `metadata.json` beside
+Each full main build records its run/attempt, static input fingerprint, builder
+runner environment, exact package version and SHA256, and preserved GHCR manifest
+digest in `metadata.json` beside
 each package artifact and in separate lightweight `<package>-provenance`
 artifacts. Images are retained as `run-<run-id>-attempt-<attempt>` tags.
 CI screens both lightweight records for source identity, build fingerprint and

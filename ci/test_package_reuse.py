@@ -19,6 +19,8 @@ ENV = {
     "GITHUB_RUN_ID": "200", "GITHUB_RUN_ATTEMPT": "1",
     "GITHUB_RUN_NUMBER": "20", "GITHUB_REF": "refs/heads/main",
     "GITHUB_EVENT_NAME": "push",
+    "RUNNER_OS": "Linux", "RUNNER_ARCH": "X64",
+    "ImageOS": "ubuntu24", "ImageVersion": "20261001.1.0",
 }
 RUN = {
     "id": 100, "run_attempt": 1, "run_number": 10, "head_sha": "a" * 40,
@@ -29,17 +31,18 @@ RUN = {
 DIGEST = "sha256:" + "c" * 64
 
 
-def metadata(package="cosmic-epoch"):
+def metadata(package="cosmic-epoch", run=RUN):
     return {
-        "schema": 1, "identity": reuse.identity(RUN), "fingerprint": "f" * 64,
+        "schema": 2, "identity": reuse.identity(run), "fingerprint": "f" * 64,
+        "builder_runner": {key: ENV[key] for key in reuse.RUNNER_KEYS},
         "deb": {
             "filename": f"{package}-monorepo.deb", "package": f"{package}-monorepo",
-            "version": "1.10.0-1.build10", "architecture": "amd64",
+            "version": f'1.10.0-1.build{run["run_number"]}', "architecture": "amd64",
             "size": 12, "sha256": "d" * 64,
         },
         "image": {
             "repository": f"ghcr.io/owner/debian-{package}",
-            "tag": f"ghcr.io/owner/debian-{package}:run-100-attempt-1",
+            "tag": f'ghcr.io/owner/debian-{package}:run-{run["id"]}-attempt-{run["run_attempt"]}',
             "digest": DIGEST,
         },
     }
@@ -64,7 +67,7 @@ class ReuseTests(unittest.TestCase):
         original = reuse.fingerprint()
         for variable in ("RUNNER_OS", "RUNNER_ARCH", "ImageOS", "ImageVersion"):
             with patch.dict(os.environ, {variable: "changed-setting"}):
-                self.assertNotEqual(original, reuse.fingerprint())
+                self.assertEqual(original, reuse.fingerprint())
         original_read = Path.read_text
         for target in (reuse.ROOT / reuse.RECIPE, Path(reuse.__file__)):
             def changed_read(path, *args, **kwargs):
@@ -180,7 +183,8 @@ class ReuseTests(unittest.TestCase):
             record[section][field] = value
             with self.subTest(field=field), self.assertRaises(ValueError):
                 self.validate(record)
-        for update in ({"schema": 0}, {"fingerprint": "other"}, {"identity": {}}):
+        for update in ({"schema": 0}, {"schema": 1}, {"schema": True},
+                       {"fingerprint": "other"}, {"identity": {}}):
             with self.assertRaises(ValueError):
                 self.validate(metadata() | update)
         for header in (
@@ -217,6 +221,33 @@ class ReuseTests(unittest.TestCase):
             with patch.object(reuse, "api", return_value=response), self.assertRaises(ValueError):
                 reuse.artifact_pair(100)
 
+    def test_builder_runner_requires_complete_well_formed_supported_platform(self):
+        baseline = reuse.runner_environment()
+        invalid = [None, [], {}, baseline | {"extra": "value"}]
+        invalid.extend({key: value for key, value in baseline.items() if key != missing}
+                       for missing in reuse.RUNNER_KEYS)
+        invalid.extend(baseline | {key: value} for key, value in (
+            ("RUNNER_OS", "Windows"), ("RUNNER_ARCH", "ARM64"),
+            ("ImageOS", "windows2025"), ("ImageOS", "ubuntu24\n"),
+            ("ImageVersion", ""), ("ImageVersion", "unknown"),
+            ("ImageVersion", "20261001.1.0\n"), ("ImageVersion", 123),
+        ))
+        for run in (RUN, RUN | {"id": 200}):
+            for runner in invalid:
+                with self.subTest(run=run["id"], runner=runner), self.assertRaises(ValueError):
+                    reuse.screen_metadata(metadata(run=run) | {"builder_runner": runner},
+                                          "cosmic-epoch", run, "f" * 64)
+
+    def test_cross_run_reuse_requires_matching_builder_environment(self):
+        for key, value in (
+            ("RUNNER_OS", "Windows"), ("RUNNER_ARCH", "ARM64"),
+            ("ImageOS", "ubuntu22"), ("ImageVersion", "20261002.1.0"),
+        ):
+            record = metadata()
+            record["builder_runner"][key] = value
+            with self.subTest(key=key), self.assertRaises(ValueError):
+                self.validate(record)
+
     def test_pair_validates_both_members_from_same_run(self):
         records = {package: metadata(package) for package in reuse.PACKAGES}
         events = []
@@ -248,6 +279,9 @@ class ReuseTests(unittest.TestCase):
         for package in reuse.PACKAGES:
             for section, field, value in (
                 (None, "fingerprint", "old-inputs"),
+                (None, "schema", 1),
+                (None, "builder_runner", None),
+                ("builder_runner", "ImageVersion", "20261002.1.0"),
                 ("identity", "attempt", "2"), ("identity", "head_sha", "b" * 40),
                 ("identity", "run_id", "99"), ("deb", "version", "1.10.0-1.build9"),
                 ("deb", "architecture", "arm64"), ("deb", "package", "unexpected"),
@@ -376,6 +410,54 @@ class ReuseTests(unittest.TestCase):
                 ])
             self.assertEqual(output.call_args_list[0].args[0]["source_run_id"], "100")
 
+    def test_fresh_release_accepts_different_builder_and_matrix_image_versions(self):
+        current = RUN | {"id": 200, "run_number": 20, "status": "in_progress", "conclusion": None}
+        records = {p: metadata(p, current) for p in reuse.PACKAGES}
+        for package, version in zip(reuse.PACKAGES, ("20260928.1.0", "20260930.2.0")):
+            records[package]["builder_runner"]["ImageVersion"] = version
+        with patch.dict(os.environ, {"SOURCE_RUN_ID": "", "SOURCE_ATTEMPT": ""}), \
+                patch.object(reuse, "run_details", return_value=current), \
+                patch.object(reuse, "scratch", return_value=Path("unused")), \
+                patch.object(reuse.Path, "exists", return_value=False), \
+                patch.object(reuse.Path, "mkdir"), \
+                patch.object(reuse.Path, "stat") as stat, \
+                patch.object(reuse, "fingerprint", return_value="f" * 64), \
+                patch.object(reuse, "artifact_pair", return_value=artifact_ids()), \
+                patch.object(reuse, "download_provenance", side_effect=lambda _, p, dest: records[p]), \
+                patch.object(reuse, "download_artifact", side_effect=lambda _, p, dest: records[p]) as download, \
+                patch.object(reuse, "sha256", return_value="d" * 64), \
+                patch.object(reuse, "deb_headers", side_effect=[
+                    {"Package": f"{p}-monorepo", "Version": "1.10.0-1.build20", "Architecture": "amd64"}
+                    for p in reuse.PACKAGES
+                ]), \
+                patch.object(reuse.shutil, "copyfile") as copyfile, \
+                patch.object(reuse, "registry_digest", return_value=DIGEST), \
+                patch.object(reuse, "output") as output, patch.object(reuse, "command") as command:
+            stat.return_value.st_size = 12
+            reuse.release()
+            self.assertEqual(download.call_count, 2)
+            self.assertEqual(copyfile.call_count, 2)
+            self.assertEqual(command.call_count, 2)
+            self.assertEqual(output.call_args_list[0].args[0]["source_run_id"], "200")
+
+    def test_reused_release_rejects_builder_environment_rollout_before_deb_download(self):
+        records = {p: metadata(p) for p in reuse.PACKAGES}
+        with patch.dict(os.environ, {
+            "SOURCE_RUN_ID": "100", "SOURCE_ATTEMPT": "1", "ImageVersion": "20261002.1.0",
+        }), \
+                patch.object(reuse, "run_details", side_effect=[RUN | {"id": 200}, RUN]), \
+                patch.object(reuse, "scratch", return_value=Path("unused")), \
+                patch.object(reuse.Path, "exists", return_value=False), \
+                patch.object(reuse, "fingerprint", return_value="f" * 64), \
+                patch.object(reuse, "artifact_pair", return_value=artifact_ids()), \
+                patch.object(reuse, "download_provenance", side_effect=lambda _, p, dest: records[p]), \
+                patch.object(reuse, "download_artifact") as download, \
+                patch.object(reuse.shutil, "rmtree"), patch.object(reuse, "command") as command, \
+                self.assertRaisesRegex(ValueError, "runner environment"):
+            reuse.release()
+        download.assert_not_called()
+        command.assert_not_called()
+
     def test_record_binds_package_hash_to_digest_returned_by_its_push(self):
         current = RUN | {"id": 200, "run_number": 20, "status": "in_progress", "conclusion": None}
         directory = MagicMock(spec=Path)
@@ -402,6 +484,8 @@ class ReuseTests(unittest.TestCase):
             self.assertEqual(record["deb"]["sha256"], "d" * 64)
             self.assertEqual(record["image"]["digest"], DIGEST)
             self.assertEqual(record["identity"]["run_id"], "200")
+            self.assertEqual(record["schema"], 2)
+            self.assertEqual(record["builder_runner"], reuse.runner_environment())
 
     def test_identity_and_outputs_reject_injection(self):
         for value in ("1\nrun_id=2", "../1", "0", "-1", "abc"):
