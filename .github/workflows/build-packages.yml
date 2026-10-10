@@ -6,7 +6,7 @@ on:
   pull_request:
     branches: [ "main" ]
   schedule:
-    - cron: '59 23 * * 5' # Weekly build on Friday at 23:59 UTC
+    - cron: '59 23 * * 5'
   workflow_dispatch:
 
 concurrency:
@@ -30,7 +30,6 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
-
       - name: Detect changed image contexts
         id: filter
         uses: dorny/paths-filter@v3
@@ -38,425 +37,89 @@ jobs:
           filters: |
             epoch:
               - 'images/cosmic-epoch/**'
+              - 'packaging/**'
             utils:
               - 'images/cosmic-utils/**'
+              - 'packaging/**'
 
-  # Resolve the workflow run ID from the PR that was merged into main (push
-  # events only).  Both build-and-push and release consume this output to
-  # avoid repeating the expensive API lookup.
-  resolve-pr-run:
+  resolve-pair:
     if: github.event.action != 'closed'
     runs-on: ubuntu-latest
     permissions:
       contents: read
       actions: read
-      pull-requests: read
+      packages: read
     outputs:
-      run_id: ${{ steps.lookup.outputs.run_id }}
+      run_id: ${{ steps.resolve.outputs.run_id }}
+      attempt: ${{ steps.resolve.outputs.attempt }}
     steps:
-      - name: Look up PR workflow run ID
-        id: lookup
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          set -euo pipefail
-
-          # Only meaningful for push-to-main; for all other events there is no
-          # merged PR to look up.
-          if [[ "${{ github.event_name }}" != "push" ]]; then
-            echo "run_id=" >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
-
-          if ! workflow_id="$(gh api \
-            "repos/${{ github.repository }}/actions/runs/${{ github.run_id }}" \
-            --jq '.workflow_id' 2>/dev/null)"; then
-            echo "::warning::Could not identify this workflow; rebuilding packages instead."
-            echo "run_id=" >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
-
-          # Find the PR(s) whose merge commit is github.sha.
-          if ! pr_head_sha="$(gh api \
-            "repos/${{ github.repository }}/commits/${{ github.sha }}/pulls" \
-            --jq '[.[] | select(.merged_at != null)][0].head.sha // empty' 2>/dev/null)"; then
-            echo "::warning::Could not look up PRs for commit ${{ github.sha }}; rebuilding packages instead."
-            echo "run_id=" >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
-
-          if [[ -z "$pr_head_sha" ]]; then
-            echo "No merged PR found for commit ${{ github.sha }}; skipping PR artifact reuse."
-            echo "run_id=" >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
-
-          echo "Resolved PR head SHA: ${pr_head_sha}"
-
-          # Find the most recent successful workflow run for that PR head SHA.
-          if ! pr_run_id="$(gh api \
-            "repos/${{ github.repository }}/actions/workflows/${workflow_id}/runs?head_sha=${pr_head_sha}&status=success&per_page=5" \
-            --jq '.workflow_runs | sort_by(.run_number) | reverse | .[0].id // empty' \
-            2>/dev/null)"; then
-            echo "::warning::Could not look up successful workflow runs for PR head SHA ${pr_head_sha}; rebuilding packages instead."
-            echo "run_id=" >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
-
-          if [[ -z "$pr_run_id" ]]; then
-            echo "::warning::No successful workflow run found for PR head SHA ${pr_head_sha}; rebuilding packages instead."
-            echo "run_id=" >> "$GITHUB_OUTPUT"
-          else
-            echo "Found PR workflow run ID: ${pr_run_id}"
-            echo "run_id=${pr_run_id}" >> "$GITHUB_OUTPUT"
-          fi
-
-  build-and-push:
-    needs: [changes, resolve-pr-run]
-    if: github.event.action != 'closed'
-    runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - name: cosmic-epoch
-            context: images/cosmic-epoch
-            image: debian-cosmic-epoch
-          - name: cosmic-utils
-            context: images/cosmic-utils
-            image: debian-cosmic-utils
-
-    permissions:
-      contents: read
-      packages: write
-      actions: read
-
-    steps:
-      # job-level `if:` cannot see the `matrix` context, so the per-leg
-      # gating (schedule/workflow_dispatch always build both legs; push/pull_request
-      # only build the leg(s) whose context changed, so a cosmic-utils-only change
-      # never forces the ~5h cosmic-epoch rebuild) is done here as a step output,
-      # and every subsequent step is gated on it.
-      #
-      # Scheduled weekly runs intentionally bypass all optimisations and always
-      # rebuild both packages from scratch.  Debian Testing/Unstable is a
-      # moving-target distribution, so the purpose of the Friday 23:59 UTC
-      # build is to produce freshly built .deb artifacts against the current
-      # dependency state — reusing a cached/skipped build would defeat that goal.
-      #
-      # For push-to-main (merge) events: either reuse a complete pair of
-      # artifacts from the merged PR run or rebuild both legs on main so the
-      # release never mixes stale and fresh packages.
-      - name: Determine whether to build this matrix leg
-        id: gate
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          set -euo pipefail
-          PR_RUN_ID="${{ needs.resolve-pr-run.outputs.run_id }}"
-
-          if [[ "${{ github.event_name }}" == "schedule" || "${{ github.event_name }}" == "workflow_dispatch" ]]; then
-            echo "should_build=true" >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
-
-          # On push-to-main: either reuse a complete pair of artifacts from the
-          # merged PR run, or rebuild both legs on main. Releasing a mixed or
-          # stale pair is worse than paying one rebuild on merge.
-          if [[ "${{ github.event_name }}" == "push" && -n "$PR_RUN_ID" ]]; then
-            artifacts="$(gh api \
-              "repos/${{ github.repository }}/actions/runs/${PR_RUN_ID}/artifacts" \
-              --jq '.artifacts[].name' 2>/dev/null || true)"
-            if grep -Fxq "cosmic-epoch-deb" <<<"$artifacts" && grep -Fxq "cosmic-utils-deb" <<<"$artifacts"; then
-              echo "PR run ${PR_RUN_ID} already contains both package artifacts. Skipping rebuild."
-              echo "should_build=false" >> "$GITHUB_OUTPUT"
-              exit 0
-            fi
-            echo "::notice::PR run ${PR_RUN_ID} does not contain both package artifacts; rebuilding both legs on main."
-            echo "should_build=true" >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
-
-          if [[ "${{ github.event_name }}" == "push" ]]; then
-            echo "::notice::No PR run was resolved for this push; rebuilding both legs on main."
-            echo "should_build=true" >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
-
-          # Fall back to path-filter for pull_request, wip/* push, or when no
-          # prior PR run was resolved.
-          if [[ "${{ matrix.name }}" == "cosmic-epoch" && "${{ needs.changes.outputs.epoch }}" == "true" ]]; then
-            echo "should_build=true" >> "$GITHUB_OUTPUT"
-          elif [[ "${{ matrix.name }}" == "cosmic-utils" && "${{ needs.changes.outputs.utils }}" == "true" ]]; then
-            echo "should_build=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "should_build=false" >> "$GITHUB_OUTPUT"
-          fi
-
       - name: Checkout repository
-        if: steps.gate.outputs.should_build == 'true'
         uses: actions/checkout@v4
-
       - name: Set up Docker Buildx
-        if: steps.gate.outputs.should_build == 'true'
         uses: docker/setup-buildx-action@v3
-
-      - name: Free disk space
-        if: steps.gate.outputs.should_build == 'true'
-        run: |
-          echo "Disk usage before cleanup:"
-          df -h
-          sudo rm -rf /usr/local/lib/android
-          sudo rm -rf /usr/share/dotnet
-          sudo rm -rf /opt/ghc
-          sudo rm -rf /opt/hostedtoolcache
-          if docker info > /dev/null 2>&1; then
-            docker system prune -af
-          fi
-          echo "Disk usage after cleanup:"
-          df -h
-
       - name: Log in to the Container registry
-        if: steps.gate.outputs.should_build == 'true'
+        if: github.ref == 'refs/heads/main' && github.event_name == 'push'
         uses: docker/login-action@v3
         with:
           registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Resolve a verified complete package and image pair
+        id: resolve
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: python3 ci/package_reuse.py resolve
 
-      - name: Inject dynamic version into packaging
-        if: steps.gate.outputs.should_build == 'true'
-        run: |
-          BUILD_VERSION="${{ env.BASE_VERSION }}.build${{ github.run_number }}"
-          echo "Injecting version: $BUILD_VERSION"
-          # Update the main version in changelog (robust matching)
-          sed -i "1s/([^)]*)/($BUILD_VERSION)/" ${{ matrix.context }}/packaging/debian/changelog
-          # Update placeholders in control file
-          sed -i "s/@VERSION@/$BUILD_VERSION/g" ${{ matrix.context }}/packaging/debian/control
-
-      - name: Build ${{ matrix.name }}
-        if: steps.gate.outputs.should_build == 'true'
-        uses: docker/build-push-action@v5
-        with:
-          context: ${{ matrix.context }}
-          push: false
-          load: true
-          tags: |
-            ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/${{ matrix.image }}:latest
-            ${{ matrix.image }}:local
-
-      - name: Push ${{ matrix.name }} to registry
-        if: steps.gate.outputs.should_build == 'true' && github.event_name != 'pull_request' && !startsWith(github.ref, 'refs/heads/wip/')
-        run: docker push ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/${{ matrix.image }}:latest
-
-      - name: Extract .deb artifact
-        if: steps.gate.outputs.should_build == 'true'
-        run: |
-          mkdir -p dist
-          docker run --rm -v $(pwd)/dist:/dist ${{ matrix.image }}:local sh -c "cp /*.deb /dist/"
-
-      - name: Test Package Installation
-        if: steps.gate.outputs.should_build == 'true'
-        run: |
-          docker run --rm -v $(pwd)/dist:/dist -e DEBIAN_FRONTEND=noninteractive debian:testing sh -c "apt-get update && apt-get install -y /dist/*.deb"
-        
-      - name: Upload .deb artifacts
-        if: steps.gate.outputs.should_build == 'true'
-        uses: actions/upload-artifact@v4
-        with:
-          name: ${{ matrix.name }}-deb
-          path: dist/*.deb
+  # This caller and package-build.yml are fingerprinted as actual build settings.
+  build-and-push:
+    needs: [changes, resolve-pair]
+    if: github.event.action != 'closed'
+    uses: ./.github/workflows/package-build.yml
+    permissions:
+      contents: read
+      packages: write
+      actions: read
+    with:
+      base_version: "1.10.0-1"
+      registry: ghcr.io
+      image_prefix: ${{ github.repository_owner }}
+      reuse_run_id: ${{ needs.resolve-pair.outputs.run_id }}
+      epoch_changed: ${{ needs.changes.outputs.epoch }}
+      utils_changed: ${{ needs.changes.outputs.utils }}
+    secrets: inherit
 
   release:
-    needs: [build-and-push, resolve-pr-run]
-    # build-and-push may legitimately be skipped for one or both matrix legs
-    # (path-filtered runs); only fail release if a leg that *did* run failed.
+    needs: [build-and-push, resolve-pair]
     if: |
-      always() && needs.build-and-push.result != 'failure' && needs.build-and-push.result != 'cancelled' &&
-      github.event_name != 'pull_request' && !startsWith(github.ref, 'refs/heads/wip/')
+      always() && needs.build-and-push.result == 'success' && needs.resolve-pair.result == 'success' &&
+      github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     env:
       GPG_PRIVATE_KEY: ${{ secrets.GPG_PRIVATE_KEY }}
     permissions:
       contents: write
+      actions: read
+      packages: write
       pages: write
       id-token: write
-      pull-requests: read
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
-
-      # resolve-pr-run (a shared job) already resolved the PR run ID for this
-      # merge commit; reuse it here to download PR artifacts without a
-      # duplicate API lookup.
-      - name: Download artifacts from PR run
-        if: needs.resolve-pr-run.outputs.run_id != ''
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          set -euo pipefail
-          mkdir -p dist/pr-run
-          artifact_count="$(gh api \
-            "repos/${{ github.repository }}/actions/runs/${{ needs.resolve-pr-run.outputs.run_id }}/artifacts" \
-            --jq '.total_count')"
-          if [[ "$artifact_count" == "0" ]]; then
-            echo "::warning::PR run ${{ needs.resolve-pr-run.outputs.run_id }} has no uploaded artifacts; continuing with local/fallback artifact resolution."
-            exit 0
-          fi
-          gh run download "${{ needs.resolve-pr-run.outputs.run_id }}" \
-            --repo "${{ github.repository }}" \
-            --dir dist/pr-run/
-          echo "Downloaded artifacts from PR run ${{ needs.resolve-pr-run.outputs.run_id }}:"
-          find dist/pr-run -maxdepth 3 -type f | sort || true
-
-      - name: Download all artifacts
-        uses: actions/download-artifact@v4
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+      - name: Log in to the Container registry
+        uses: docker/login-action@v3
         with:
-          path: dist/current-run/
-          merge-multiple: true
-
-      - name: Ensure both package artifacts are present for release
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Validate exactly one source pair and promote its immutable images
+        id: release_meta
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          set -euo pipefail
-          shopt -s nullglob
-          mkdir -p dist
-
-          stage_debs() {
-            local source_root="$1"
-            [ -d "$source_root" ] || return 0
-
-            find "$source_root" -type f -name '*.deb' | while IFS= read -r deb; do
-              local pkg ver arch target
-              pkg="$(dpkg-deb -f "$deb" Package)"
-              ver="$(dpkg-deb -f "$deb" Version | tr ':' '_')"
-              arch="$(dpkg-deb -f "$deb" Architecture)"
-              target="dist/${pkg}_${ver}_${arch}.deb"
-              cp -f "$deb" "$target"
-            done
-          }
-
-          # Returns 0 if a .deb with the given Package header exists in dist/
-          has_pkg() {
-            local want="$1" deb pkg
-            for deb in dist/*.deb; do
-              pkg="$(dpkg-deb -f "$deb" Package 2>/dev/null || true)"
-              [ "$pkg" = "$want" ] && return 0
-            done
-            return 1
-          }
-
-          pkg_version() {
-            local want="$1" deb pkg
-            for deb in dist/*.deb; do
-              pkg="$(dpkg-deb -f "$deb" Package 2>/dev/null || true)"
-              if [ "$pkg" = "$want" ]; then
-                dpkg-deb -f "$deb" Version
-                return 0
-              fi
-            done
-            return 1
-          }
-
-          stage_debs dist/pr-run
-          stage_debs dist/current-run
-
-          # --- cosmic-epoch-monorepo ---
-          if has_pkg cosmic-epoch-monorepo; then
-            echo "cosmic-epoch-monorepo is present."
-          else
-            echo "::error::cosmic-epoch-monorepo is missing from the current run and any resolved PR run." >&2
-            exit 1
-          fi
-
-          # --- cosmic-utils-monorepo ---
-          if has_pkg cosmic-utils-monorepo; then
-            echo "cosmic-utils-monorepo is present."
-          else
-            echo "::error::cosmic-utils-monorepo is missing from the current run and any resolved PR run." >&2
-            exit 1
-          fi
-
-          # Final guard: require both packages
-          missing=()
-          has_pkg cosmic-epoch-monorepo || missing+=("cosmic-epoch-monorepo")
-          has_pkg cosmic-utils-monorepo || missing+=("cosmic-utils-monorepo")
-          if [ ${#missing[@]} -gt 0 ]; then
-            echo "ERROR: The following package(s) could not be obtained: ${missing[*]}" >&2
-            echo "Available files in dist/:" >&2
-            ls -la dist/ >&2 || true
-            exit 1
-          fi
-
-          epoch_ver="$(pkg_version cosmic-epoch-monorepo)"
-          utils_ver="$(pkg_version cosmic-utils-monorepo)"
-          expected_prefix="${{ env.BASE_VERSION }}.build"
-
-          case "$epoch_ver" in
-            "${expected_prefix}"*) ;;
-            *)
-              echo "::error::cosmic-epoch-monorepo version '$epoch_ver' does not match expected prefix '${expected_prefix}'." >&2
-              exit 1
-              ;;
-          esac
-
-          case "$utils_ver" in
-            "${expected_prefix}"*) ;;
-            *)
-              echo "::error::cosmic-utils-monorepo version '$utils_ver' does not match expected prefix '${expected_prefix}'." >&2
-              exit 1
-              ;;
-          esac
-
-          if [ "$epoch_ver" != "$utils_ver" ]; then
-            echo "::error::Package version mismatch: cosmic-epoch-monorepo=$epoch_ver cosmic-utils-monorepo=$utils_ver" >&2
-            exit 1
-          fi
-
-          echo "Both packages are present in dist/. Proceeding with release."
-
-      - name: Normalize .deb filenames with package version
-        run: |
-          shopt -s nullglob
-          for deb in dist/*.deb; do
-            pkg="$(dpkg-deb -f "$deb" Package)"
-            ver="$(dpkg-deb -f "$deb" Version | tr ':' '_')"
-            arch="$(dpkg-deb -f "$deb" Architecture)"
-            target="dist/${pkg}_${ver}_${arch}.deb"
-            [ "$deb" = "$target" ] || mv "$deb" "$target"
-          done
-
-      - name: Read package version for release metadata
-        id: release_meta
-        run: |
-          shopt -s nullglob
-          debs=(dist/*.deb)
-          if [ ${#debs[@]} -eq 0 ]; then
-            echo "No .deb artifacts found in dist/" >&2
-            exit 1
-          fi
-          epoch_pkg=""
-          utils_pkg=""
-          for deb in "${debs[@]}"; do
-            pkg="$(dpkg-deb -f "$deb" Package)"
-            case "$pkg" in
-              cosmic-epoch-monorepo) epoch_pkg="$deb" ;;
-              cosmic-utils-monorepo) utils_pkg="$deb" ;;
-            esac
-          done
-          if [ -z "$epoch_pkg" ] || [ -z "$utils_pkg" ]; then
-            echo "Expected both cosmic-epoch-monorepo and cosmic-utils-monorepo in dist/" >&2
-            exit 1
-          fi
-          rel_ver="$(dpkg-deb -f "$epoch_pkg" Version)"
-          utils_ver="$(dpkg-deb -f "$utils_pkg" Version)"
-          if [ "$rel_ver" != "$utils_ver" ]; then
-            echo "Release metadata version mismatch: cosmic-epoch-monorepo=$rel_ver cosmic-utils-monorepo=$utils_ver" >&2
-            exit 1
-          fi
-          echo "release_version=$rel_ver" >> "$GITHUB_OUTPUT"
-
+          SOURCE_RUN_ID: ${{ needs.resolve-pair.outputs.run_id }}
+          SOURCE_ATTEMPT: ${{ needs.resolve-pair.outputs.attempt }}
+        run: python3 ci/package_reuse.py release
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
@@ -465,43 +128,37 @@ jobs:
           body: |
             ## 🌌 COSMIC Rolling Release
             Automatically generated build for Debian Testing/Sid.
-            
-            ### 🏗️ Artifacts
-            - **Images:** `ghcr.io/${{ github.repository_owner }}/debian-cosmic-epoch:latest`
-            - **Images:** `ghcr.io/${{ github.repository_owner }}/debian-cosmic-utils:latest`
-            
+
+            Package/image source: workflow run ${{ steps.release_meta.outputs.source_run_id }}.
+            - **Epoch:** `${{ steps.release_meta.outputs.epoch_image }}`
+            - **Utils:** `${{ steps.release_meta.outputs.utils_image }}`
+
+            These exact images are also promoted to `:latest`.
             Download the `.deb` files below for traditional installation.
-          files: dist/*.deb
+          files: ${{ env.DIST_DIR }}/*.deb
           draft: false
           prerelease: false
-
       - name: Setup GPG for APT Signing
         if: env.GPG_PRIVATE_KEY != ''
         run: |
-          echo "${{ secrets.GPG_PRIVATE_KEY }}" | gpg --import --batch
-          # Export public key for users
-          gpg --armor --export > dist/debian-cosmic.gpg
-
+          printf '%s\n' "$GPG_PRIVATE_KEY" | gpg --import --batch
+          gpg --armor --export > "$DIST_DIR/debian-cosmic.gpg"
       - name: Build APT Repository with reprepro
         run: |
+          set -euo pipefail
           sudo apt-get update && sudo apt-get install -y reprepro
-          mkdir -p repo/conf
-          cp packaging/reprepro/conf/distributions repo/conf/
-          
-          # Add packages to reprepro
-          for deb in dist/*.deb; do
-            reprepro -b repo includedeb unstable "$deb"
+          mkdir -p "$APT_REPO_DIR/conf"
+          cp packaging/reprepro/conf/distributions "$APT_REPO_DIR/conf/"
+          for deb in "$DIST_DIR"/*.deb; do
+            reprepro -b "$APT_REPO_DIR" includedeb unstable "$deb"
           done
-          
-          # Move public key into the web root
-          if [ -f dist/debian-cosmic.gpg ]; then
-            cp dist/debian-cosmic.gpg repo/
+          if [ -f "$DIST_DIR/debian-cosmic.gpg" ]; then
+            cp "$DIST_DIR/debian-cosmic.gpg" "$APT_REPO_DIR/"
           fi
-
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          path: repo/
+          path: ${{ env.APT_REPO_DIR }}
 
   deploy-pages:
     needs: release
