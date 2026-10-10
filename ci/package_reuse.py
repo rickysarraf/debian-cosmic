@@ -21,6 +21,7 @@ NUMBER = re.compile(r"[1-9][0-9]*")
 MAX_DEB_SIZE = 8 * 1024**3
 MAX_METADATA_SIZE = 65536
 MAX_PROVENANCE_ARCHIVE_SIZE = 131072
+RUNNER_KEYS = ("RUNNER_OS", "RUNNER_ARCH", "ImageOS", "ImageVersion")
 
 
 def command(args, **kwargs):
@@ -115,11 +116,25 @@ def fingerprint(allow_unverified=False):
         "settings": settings,
         "recipe": (ROOT / RECIPE).read_text(),
         "resolver": Path(__file__).read_text(),
-        "runner": {key: os.environ.get(key, "") for key in (
-            "RUNNER_OS", "RUNNER_ARCH", "ImageOS", "ImageVersion",
-        )},
     }
     return hashlib.sha256(json.dumps(inputs, sort_keys=True).encode()).hexdigest()
+
+
+def validate_builder_runner(runner):
+    # The recipe builds amd64 packages on ubuntu-latest; image rollouts can
+    # allocate different versions to each matrix leg and the release job.
+    if (not isinstance(runner, dict) or set(runner) != set(RUNNER_KEYS)
+            or any(not isinstance(value, str) for value in runner.values())
+            or runner["RUNNER_OS"] != "Linux" or runner["RUNNER_ARCH"] != "X64"
+            or not re.fullmatch(r"ubuntu[0-9]{2}", runner["ImageOS"])
+            or not re.fullmatch(r"[0-9]+(?:\.[0-9]+)+", runner["ImageVersion"])):
+        raise ValueError("missing/invalid builder runner provenance or platform")
+
+
+def runner_environment():
+    runner = {key: os.environ.get(key, "") for key in RUNNER_KEYS}
+    validate_builder_runner(runner)
+    return runner
 
 
 def configuration():
@@ -209,9 +224,15 @@ def deb_headers(path):
 def screen_metadata(metadata, package, run, expected_fingerprint):
     expected_identity = identity(run)
     version = f'{expected_identity["base_version"]}.build{expected_identity["run_number"]}'
-    if (metadata.get("schema") != 1 or metadata.get("identity") != expected_identity
+    if (type(metadata.get("schema")) is not int or metadata["schema"] != 2
+            or metadata.get("identity") != expected_identity
             or metadata.get("fingerprint") != expected_fingerprint):
         raise ValueError("missing/mismatched provenance, base version or build inputs")
+    builder_runner = metadata.get("builder_runner")
+    validate_builder_runner(builder_runner)
+    if (expected_identity["run_id"] != numeric(os.environ["GITHUB_RUN_ID"])
+            and builder_runner != runner_environment()):
+        raise ValueError("builder runner environment does not match reuse runner")
     deb = metadata["deb"]
     if (deb["filename"] != f"{package}-monorepo.deb"
             or deb["package"] != f"{package}-monorepo"
@@ -394,6 +415,7 @@ def record():
     package = os.environ["PACKAGE_NAME"]
     if package not in PACKAGES:
         raise ValueError("unexpected package")
+    builder_runner = runner_environment()
     run = run_details(os.environ["GITHUB_RUN_ID"])
     trusted(run, run["workflow_id"], current=True)
     directory = Path(os.environ["DIST_DIR"])
@@ -421,9 +443,10 @@ def record():
     if registry_digest(f"{reference}@{pushed_digest}") != pushed_digest:
         raise ValueError("pushed immutable image cannot be verified")
     metadata = {
-        "schema": 1,
+        "schema": 2,
         "identity": build_identity,
         "fingerprint": (directory / "fingerprint").read_text().strip(),
+        "builder_runner": builder_runner,
         "deb": {
             "filename": path.name, "package": headers["Package"],
             "version": headers["Version"], "architecture": headers["Architecture"],
