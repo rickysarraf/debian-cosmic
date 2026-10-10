@@ -70,3 +70,49 @@ This document serves as the operational handbook for AI agents working on the `d
   3. Always build **both** legs unconditionally on `schedule`/`workflow_dispatch` (the weekly rolling-release build), regardless of path filters.
   4. **Never** include the workflow file itself (`.github/workflows/build-packages.yml`) in either leg's path filter — doing so re-triggers a full rebuild of both legs on any CI-only change, defeating the decoupling.
   5. Downstream jobs (`release`, `deploy-pages`) that `needs:` the matrix job must tolerate a partially-skipped matrix (`result != 'failure' && result != 'cancelled'`, not merely `== 'success'`), since path-filtered runs can legitimately skip one leg.
+
+---
+
+## 6. CI Package/Image Reuse Policy
+
+Pushes to `main` may reuse **both** packages from one successful `main` run of
+this same workflow and repository. The resolver checks the complete `images/`
+and root `packaging/` Git trees, the full reusable build recipe
+(`.github/workflows/package-build.yml`), the caller's build job and global build
+settings, and the resolver itself. Documentation and reuse-orchestration changes
+alone do not invalidate the build inputs. Builder runner OS/architecture and hosted
+image OS/version are recorded separately and must match the resolver and release
+runners conservatively for cross-run reuse. Fresh current-run packages instead
+require valid Ubuntu/Linux x64 builder provenance; their matrix legs and release
+runner may use different hosted image versions. Keep `BASE_VERSION` and the build
+caller's `base_version` synchronized when updating versions.
+
+Each full main build records its run/attempt, static input fingerprint, builder
+runner environment, exact package version and SHA256, and preserved GHCR manifest
+digest in `metadata.json` beside
+each package artifact and in separate lightweight `<package>-provenance`
+artifacts. Images are retained as `run-<run-id>-attempt-<attempt>` tags.
+CI screens both lightweight records for source identity, build fingerprint and
+package/image metadata before downloading either large `.deb` artifact. The
+metadata beside each downloaded `.deb` must match its screened record exactly.
+Before skipping either build, CI verifies actual Debian headers and hashes, and checks both
+immutable images exist. `:latest` is promoted from those exact digests, never
+used as a reuse source; release notes identify the immutable image references.
+The two `:latest` tags update sequentially (GHCR has no atomic pair update);
+immutable release references remain authoritative if promotion is interrupted.
+
+Missing/expired artifacts, legacy metadata, different versions/settings,
+unavailable images or API/validation errors reject reuse and rebuild **both**
+packages. Acceptance/rejection reasons appear in the resolver logs. Selection
+is revalidated at release; a disappeared or changed source fails the release
+rather than mixing runs or falling back to current artifacts. Search is bounded
+to the latest 100 successful main runs; older pairs cause a safe rebuild.
+GHCR tags should be retained at least as long as their package artifacts.
+Unrecognized workflow syntax disables reuse; fresh builds can still record
+conservative whole-workflow provenance and release their own complete pair.
+
+Scheduled and manually dispatched runs always build fresh. PR and `wip/*`
+pushes retain per-context path gating (root packaging changes affect both).
+PR-only artifacts are never reusable: they are not trusted release sources and
+have no corresponding preserved OCI images. Large CI artifacts are staged under
+`~/NoBackup/GEMINI_SCRATCH/`; package builds and installation tests use containers.
