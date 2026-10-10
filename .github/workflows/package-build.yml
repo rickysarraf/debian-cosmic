@@ -1,0 +1,148 @@
+name: COSMIC package build recipe
+
+on:
+  workflow_call:
+    inputs:
+      base_version:
+        required: true
+        type: string
+      registry:
+        required: true
+        type: string
+      image_prefix:
+        required: true
+        type: string
+      reuse_run_id:
+        required: true
+        type: string
+      epoch_changed:
+        required: true
+        type: string
+      utils_changed:
+        required: true
+        type: string
+
+# Fingerprinted in full: runner, matrix, environment, actions and build commands.
+env:
+  BASE_VERSION: ${{ inputs.base_version }}
+  REGISTRY: ${{ inputs.registry }}
+  IMAGE_PREFIX: ${{ inputs.image_prefix }}
+
+jobs:
+  packages:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: cosmic-epoch
+            context: images/cosmic-epoch
+            image: debian-cosmic-epoch
+          - name: cosmic-utils
+            context: images/cosmic-utils
+            image: debian-cosmic-utils
+    permissions:
+      contents: read
+      packages: write
+      actions: read
+    steps:
+      - name: Determine whether to build this matrix leg
+        id: gate
+        env:
+          REUSE_RUN_ID: ${{ inputs.reuse_run_id }}
+          PACKAGE_NAME: ${{ matrix.name }}
+          EPOCH_CHANGED: ${{ inputs.epoch_changed }}
+          UTILS_CHANGED: ${{ inputs.utils_changed }}
+        run: |
+          set -euo pipefail
+          if [[ "$GITHUB_EVENT_NAME" == "schedule" || "$GITHUB_EVENT_NAME" == "workflow_dispatch" ]]; then
+            build=true
+          elif [[ "$GITHUB_REF" == "refs/heads/main" && "$GITHUB_EVENT_NAME" == "push" ]]; then
+            if [[ -n "$REUSE_RUN_ID" ]]; then build=false; else build=true; fi
+          elif [[ "$PACKAGE_NAME" == "cosmic-epoch" && "$EPOCH_CHANGED" == "true" ]] ||
+               [[ "$PACKAGE_NAME" == "cosmic-utils" && "$UTILS_CHANGED" == "true" ]]; then
+            build=true
+          else
+            build=false
+          fi
+          echo "should_build=$build" >> "$GITHUB_OUTPUT"
+      - name: Checkout repository
+        if: steps.gate.outputs.should_build == 'true'
+        uses: actions/checkout@v4
+      - name: Set up Docker Buildx
+        if: steps.gate.outputs.should_build == 'true'
+        uses: docker/setup-buildx-action@v3
+      - name: Free disk space
+        if: steps.gate.outputs.should_build == 'true'
+        run: |
+          df -h
+          sudo rm -rf /usr/local/lib/android /usr/share/dotnet /opt/ghc /opt/hostedtoolcache
+          if docker info > /dev/null 2>&1; then docker system prune -af; fi
+          df -h
+      - name: Log in to the Container registry
+        if: steps.gate.outputs.should_build == 'true' && github.ref == 'refs/heads/main'
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Prepare build identity and inject dynamic version
+        if: steps.gate.outputs.should_build == 'true'
+        env:
+          PACKAGE_NAME: ${{ matrix.name }}
+          BUILD_CONTEXT: ${{ matrix.context }}
+        run: |
+          set -euo pipefail
+          DIST_DIR="$HOME/NoBackup/GEMINI_SCRATCH/$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT/$PACKAGE_NAME"
+          mkdir -p "$DIST_DIR"
+          echo "DIST_DIR=$DIST_DIR" >> "$GITHUB_ENV"
+          python3 ci/package_reuse.py fingerprint > "$DIST_DIR/fingerprint"
+          BUILD_VERSION="$BASE_VERSION.build$GITHUB_RUN_NUMBER"
+          sed -i "1s/([^)]*)/($BUILD_VERSION)/" "$BUILD_CONTEXT/packaging/debian/changelog"
+          sed -i "s/@VERSION@/$BUILD_VERSION/g" "$BUILD_CONTEXT/packaging/debian/control"
+          echo "IMAGE_REF=${REGISTRY}/${IMAGE_PREFIX,,}/debian-$PACKAGE_NAME" >> "$GITHUB_ENV"
+      - name: Build ${{ matrix.name }}
+        if: steps.gate.outputs.should_build == 'true'
+        uses: docker/build-push-action@v5
+        with:
+          context: ${{ matrix.context }}
+          push: false
+          load: true
+          tags: ${{ matrix.image }}:local
+      - name: Extract .deb artifact
+        if: steps.gate.outputs.should_build == 'true'
+        env:
+          LOCAL_IMAGE: ${{ matrix.image }}:local
+        run: docker run --rm -v "$DIST_DIR:/dist" "$LOCAL_IMAGE" sh -c 'cp /*.deb /dist/'
+      - name: Test Package Installation
+        if: steps.gate.outputs.should_build == 'true'
+        run: |
+          docker run --rm -v "$DIST_DIR:/dist" -e DEBIAN_FRONTEND=noninteractive debian:testing \
+            sh -c 'apt-get update && apt-get install -y /dist/*.deb'
+      - name: Preserve immutable source image and package metadata
+        if: steps.gate.outputs.should_build == 'true' && github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PACKAGE_NAME: ${{ matrix.name }}
+          LOCAL_IMAGE: ${{ matrix.image }}:local
+        run: |
+          set -euo pipefail
+          IMAGE_TAG="$IMAGE_REF:run-$GITHUB_RUN_ID-attempt-$GITHUB_RUN_ATTEMPT"
+          docker tag "$LOCAL_IMAGE" "$IMAGE_TAG"
+          python3 ci/package_reuse.py record
+      - name: Upload lightweight package provenance
+        if: steps.gate.outputs.should_build == 'true' && github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.name }}-provenance
+          path: ${{ env.DIST_DIR }}/metadata.json
+          if-no-files-found: error
+      - name: Upload package and provenance
+        if: steps.gate.outputs.should_build == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.name }}-deb
+          path: |
+            ${{ env.DIST_DIR }}/*.deb
+            ${{ env.DIST_DIR }}/metadata.json
+          if-no-files-found: error
