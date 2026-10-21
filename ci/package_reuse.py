@@ -22,6 +22,9 @@ MAX_DEB_SIZE = 8 * 1024**3
 MAX_METADATA_SIZE = 65536
 MAX_PROVENANCE_ARCHIVE_SIZE = 131072
 RUNNER_KEYS = ("RUNNER_OS", "RUNNER_ARCH", "ImageOS", "ImageVersion")
+# Hosted image versions roll out continuously and do not enter the containerised
+# build, so cross-run reuse compares the platform but not the image version.
+REUSE_RUNNER_KEYS = ("RUNNER_OS", "RUNNER_ARCH", "ImageOS")
 
 
 def command(args, **kwargs):
@@ -169,13 +172,16 @@ def identity(run):
 
 
 def trusted(run, workflow_id, current=False):
+    # Same-repository PR builds are trusted sources too: only collaborators can
+    # push their branches, and reuse still requires an exact fingerprint match.
     repo, _, _ = configuration()
     if (run["repository"]["full_name"] != repo
             or run["head_repository"]["full_name"] != repo
             or str(run["workflow_id"]) != str(workflow_id)
-            or run["head_branch"] != "main"
-            or run["event"] not in ("push", "schedule", "workflow_dispatch")):
-        raise ValueError("not a same-repository main build of this workflow")
+            or not (run["event"] == "pull_request" or (
+                run["head_branch"] == "main"
+                and run["event"] in ("push", "schedule", "workflow_dispatch")))):
+        raise ValueError("not a same-repository main or PR build of this workflow")
     if current:
         if numeric(run["id"]) != numeric(os.environ["GITHUB_RUN_ID"]):
             raise ValueError("not the current build")
@@ -230,8 +236,9 @@ def screen_metadata(metadata, package, run, expected_fingerprint):
         raise ValueError("missing/mismatched provenance, base version or build inputs")
     builder_runner = metadata.get("builder_runner")
     validate_builder_runner(builder_runner)
+    current_runner = runner_environment()
     if (expected_identity["run_id"] != numeric(os.environ["GITHUB_RUN_ID"])
-            and builder_runner != runner_environment()):
+            and any(builder_runner[key] != current_runner[key] for key in REUSE_RUNNER_KEYS)):
         raise ValueError("builder runner environment does not match reuse runner")
     deb = metadata["deb"]
     if (deb["filename"] != f"{package}-monorepo.deb"
@@ -383,10 +390,13 @@ def resolve():
         current = run_details(os.environ["GITHUB_RUN_ID"])
         workflow_id = current["workflow_id"]
         repo, _, _ = configuration()
+        # Newest first over every successful run of this workflow, main and PR
+        # alike: a merge that leaves the build inputs unchanged (README-only, or
+        # a main run that itself reused) still reaches the run that built the pair.
         # Bounded search: not finding an older pair is safe (build both).
         runs = api(
             f"repos/{repo}/actions/workflows/{numeric(workflow_id)}/runs"
-            "?branch=main&status=success&per_page=100"
+            "?status=success&per_page=100"
         )["workflow_runs"]
         for candidate in runs:
             run_id = numeric(candidate["id"])

@@ -4,6 +4,7 @@ import io
 import json
 import os
 from pathlib import Path
+import re
 import subprocess
 import textwrap
 import unittest
@@ -29,6 +30,8 @@ RUN = {
     "event": "push", "status": "completed", "conclusion": "success",
 }
 DIGEST = "sha256:" + "c" * 64
+PR_RUN = RUN | {"id": 90, "run_number": 9, "head_sha": "b" * 40,
+                "head_branch": "prs/upgrade", "event": "pull_request"}
 
 
 def metadata(package="cosmic-epoch", run=RUN):
@@ -86,14 +89,16 @@ class ReuseTests(unittest.TestCase):
         baseline = reuse.global_and_caller_settings(text)
         modified = text.replace("python3 ci/package_reuse.py resolve", "echo resolver-only")
         self.assertEqual(baseline, reuse.global_and_caller_settings(modified))
-        for old, new in (
-            ('BASE_VERSION: "1.10.0-1"', 'BASE_VERSION: "2.0-1"'),
-            ('base_version: "1.10.0-1"', 'base_version: "2.0-1"'),
-            ("registry: ghcr.io", "registry: other.io"),
-            ("secrets: inherit", "secrets: {}"),
+        for pattern, new in (
+            (r'BASE_VERSION: "[^"]+"', 'BASE_VERSION: "0.0-1"'),
+            (r'base_version: "[^"]+"', 'base_version: "0.0-1"'),
+            (r"registry: ghcr\.io", "registry: other.io"),
+            (r"secrets: inherit", "secrets: {}"),
         ):
-            with self.subTest(old=old):
-                self.assertNotEqual(baseline, reuse.global_and_caller_settings(text.replace(old, new)))
+            with self.subTest(pattern=pattern):
+                changed, count = re.subn(pattern, new, text)
+                self.assertGreater(count, 0)
+                self.assertNotEqual(baseline, reuse.global_and_caller_settings(changed))
         self.assertNotEqual(
             baseline, reuse.global_and_caller_settings(text.replace("jobs:", "defaults:\n  run:\n    shell: bash\n\njobs:", 1)),
         )
@@ -122,34 +127,44 @@ class ReuseTests(unittest.TestCase):
         gate = textwrap.dedent(recipe.split("        run: |\n", 1)[1].split(
             "      - name: Checkout repository", 1,
         )[0]).replace(' >> "$GITHUB_OUTPUT"', "")
-        for event, ref, source, package, epoch, utils, expected in (
-            ("push", "refs/heads/main", "", "cosmic-epoch", "false", "false", "true"),
-            ("push", "refs/heads/main", "100", "cosmic-utils", "true", "true", "false"),
-            ("push", "refs/heads/wip/test", "", "cosmic-epoch", "false", "true", "false"),
-            ("push", "refs/heads/wip/test", "", "cosmic-utils", "false", "true", "true"),
-            ("pull_request", "refs/pull/1/merge", "", "cosmic-epoch", "true", "false", "true"),
-            ("schedule", "refs/heads/main", "100", "cosmic-epoch", "false", "false", "true"),
-            ("workflow_dispatch", "refs/heads/main", "100", "cosmic-utils", "false", "false", "true"),
+        same, fork = "owner/project", "fork/project"
+        for event, ref, source, package, epoch, utils, head, build, record in (
+            ("push", "refs/heads/main", "", "cosmic-epoch", "false", "false", "", "true", "true"),
+            ("push", "refs/heads/main", "100", "cosmic-utils", "true", "true", "", "false", "false"),
+            ("push", "refs/heads/wip/test", "", "cosmic-epoch", "false", "true", "", "false", "false"),
+            ("push", "refs/heads/wip/test", "", "cosmic-utils", "false", "true", "", "true", "false"),
+            ("pull_request", "refs/pull/1/merge", "", "cosmic-epoch", "true", "false", same, "true", "true"),
+            ("pull_request", "refs/pull/1/merge", "", "cosmic-utils", "true", "false", same, "false", "false"),
+            ("pull_request", "refs/pull/1/merge", "", "cosmic-epoch", "true", "false", fork, "true", "false"),
+            ("schedule", "refs/heads/main", "100", "cosmic-epoch", "false", "false", "", "true", "true"),
+            ("workflow_dispatch", "refs/heads/main", "100", "cosmic-utils", "false", "false", "", "true", "true"),
         ):
             env = os.environ | {
                 "GITHUB_EVENT_NAME": event, "GITHUB_REF": ref, "REUSE_RUN_ID": source,
                 "PACKAGE_NAME": package, "EPOCH_CHANGED": epoch, "UTILS_CHANGED": utils,
+                "PR_HEAD_REPOSITORY": head,
             }
             result = subprocess.run(["bash"], input=gate, text=True, capture_output=True, env=env, check=True)
-            with self.subTest(event=event, ref=ref, package=package):
-                self.assertEqual(result.stdout.strip(), f"should_build={expected}")
+            with self.subTest(event=event, ref=ref, package=package, head=head):
+                self.assertEqual(result.stdout.split(), [f"should_build={build}", f"should_record={record}"])
 
-    def test_trust_requires_successful_same_workflow_repository_main(self):
+    def test_trust_requires_successful_same_workflow_repository_main_or_pr(self):
         reuse.trusted(RUN, 7)
-        for field, value in (
-            ("workflow_id", 8), ("head_branch", "wip/test"), ("event", "pull_request"),
-            ("status", "in_progress"), ("conclusion", "failure"),
-            ("repository", {"full_name": "other/project"}),
-            ("head_repository", {"full_name": "fork/project"}),
-        ):
-            run = RUN | {field: value}
-            with self.subTest(field=field), self.assertRaises(ValueError):
-                reuse.trusted(run, 7)
+        reuse.trusted(PR_RUN, 7)
+        for base in (RUN, PR_RUN):
+            for field, value in (
+                ("workflow_id", 8), ("event", "pull_request_target"),
+                ("status", "in_progress"), ("conclusion", "failure"),
+                ("repository", {"full_name": "other/project"}),
+                ("head_repository", {"full_name": "fork/project"}),
+            ):
+                run = base | {field: value}
+                with self.subTest(base=base["event"], field=field), self.assertRaises(ValueError):
+                    reuse.trusted(run, 7)
+        with self.assertRaises(ValueError):
+            reuse.trusted(RUN | {"head_branch": "wip/test"}, 7)
+        # A same-repository PR build may record its own provenance while running.
+        reuse.trusted(PR_RUN | {"id": 200, "status": "in_progress", "conclusion": None}, 7, current=True)
 
     def test_current_run_trust_requires_current_attempt_and_live_run(self):
         run = RUN | {"id": 200, "status": "in_progress", "conclusion": None}
@@ -238,15 +253,17 @@ class ReuseTests(unittest.TestCase):
                     reuse.screen_metadata(metadata(run=run) | {"builder_runner": runner},
                                           "cosmic-epoch", run, "f" * 64)
 
-    def test_cross_run_reuse_requires_matching_builder_environment(self):
+    def test_cross_run_reuse_requires_matching_builder_platform(self):
         for key, value in (
-            ("RUNNER_OS", "Windows"), ("RUNNER_ARCH", "ARM64"),
-            ("ImageOS", "ubuntu22"), ("ImageVersion", "20261002.1.0"),
+            ("RUNNER_OS", "Windows"), ("RUNNER_ARCH", "ARM64"), ("ImageOS", "ubuntu22"),
         ):
             record = metadata()
             record["builder_runner"][key] = value
             with self.subTest(key=key), self.assertRaises(ValueError):
                 self.validate(record)
+        record = metadata()
+        record["builder_runner"]["ImageVersion"] = "20261002.1.0"
+        self.assertEqual(self.validate(record), "ghcr.io/owner/debian-cosmic-epoch@" + DIGEST)
 
     def test_pair_validates_both_members_from_same_run(self):
         records = {package: metadata(package) for package in reuse.PACKAGES}
@@ -281,7 +298,7 @@ class ReuseTests(unittest.TestCase):
                 (None, "fingerprint", "old-inputs"),
                 (None, "schema", 1),
                 (None, "builder_runner", None),
-                ("builder_runner", "ImageVersion", "20261002.1.0"),
+                ("builder_runner", "ImageOS", "ubuntu22"),
                 ("identity", "attempt", "2"), ("identity", "head_sha", "b" * 40),
                 ("identity", "run_id", "99"), ("deb", "version", "1.10.0-1.build9"),
                 ("deb", "architecture", "arm64"), ("deb", "package", "unexpected"),
@@ -369,6 +386,31 @@ class ReuseTests(unittest.TestCase):
             reuse.resolve()
             self.assertEqual(output.call_args_list[-1].args[0], {"run_id": "100", "attempt": "1"})
 
+    def test_build_neutral_merge_reuses_pair_from_earlier_pr_after_main_reused_it(self):
+        # PR 100 built the pair (run 90); its merge (main run 95) reused it and built
+        # nothing; README-only PR 101 (run 96) built nothing; its merge is run 200.
+        pr_101 = PR_RUN | {"id": 96, "run_number": 12, "head_sha": "d" * 40, "head_branch": "readme"}
+        main_reuse = RUN | {"id": 95, "run_number": 11}
+        runs = {"200": RUN | {"id": 200, "status": "in_progress"}, "96": pr_101, "95": main_reuse,
+                "90": PR_RUN, "100": RUN}
+        listing = {"workflow_runs": [runs[i] for i in ("96", "95", "90", "100")]}
+        tried = []
+        def verify(run, *args):
+            tried.append(str(run["id"]))
+            if run["id"] != 90:
+                raise ValueError("artifact missing")
+            return {}, run
+        with patch.object(reuse, "output") as output, \
+                patch.object(reuse, "fingerprint", return_value="f" * 64), \
+                patch.object(reuse, "scratch", return_value=Path("unused")), \
+                patch.object(reuse.shutil, "rmtree"), patch.object(reuse, "api", return_value=listing) as api, \
+                patch.object(reuse, "run_details", side_effect=lambda run_id: runs[str(run_id)]), \
+                patch.object(reuse, "verify_pair", side_effect=verify):
+            reuse.resolve()
+        self.assertEqual(output.call_args_list[-1].args[0], {"run_id": "90", "attempt": "1"})
+        self.assertEqual(tried, ["96", "95", "90"])
+        api.assert_called_once_with("repos/owner/project/actions/workflows/7/runs?status=success&per_page=100")
+
     def test_unavailable_selected_source_never_promotes_or_falls_back(self):
         with patch.dict(os.environ, {"SOURCE_RUN_ID": "100", "SOURCE_ATTEMPT": "1"}), \
                 patch.object(reuse, "run_details", side_effect=[RUN | {"id": 200}, RUN]), \
@@ -384,17 +426,22 @@ class ReuseTests(unittest.TestCase):
             command.assert_not_called()
 
     def test_release_promotes_only_selected_digests_after_whole_pair_validation(self):
+        for source in (RUN, PR_RUN):
+            with self.subTest(source=source["event"]):
+                self.release_from(source)
+
+    def release_from(self, source):
         verified = {
-            package: (MagicMock(), metadata(package), reuse.image_reference(package) + "@" + DIGEST)
+            package: (MagicMock(), metadata(package, source), reuse.image_reference(package) + "@" + DIGEST)
             for package in reuse.PACKAGES
         }
         directory = MagicMock()
         directory.__truediv__.return_value.exists.return_value = False
-        with patch.dict(os.environ, {"SOURCE_RUN_ID": "100", "SOURCE_ATTEMPT": "1"}), \
-                patch.object(reuse, "run_details", side_effect=[RUN | {"id": 200}, RUN]), \
+        with patch.dict(os.environ, {"SOURCE_RUN_ID": str(source["id"]), "SOURCE_ATTEMPT": "1"}), \
+                patch.object(reuse, "run_details", side_effect=[RUN | {"id": 200}, source]), \
                 patch.object(reuse, "scratch", return_value=directory), \
                 patch.object(reuse, "fingerprint", return_value="f" * 64), \
-                patch.object(reuse, "verify_pair", return_value=(verified, RUN)) as verify, \
+                patch.object(reuse, "verify_pair", return_value=(verified, source)) as verify, \
                 patch.object(reuse.shutil, "copyfile") as copyfile, \
                 patch.object(reuse, "registry_digest", return_value=DIGEST), \
                 patch.object(reuse, "output") as output, patch.object(reuse, "command") as command:
@@ -408,7 +455,7 @@ class ReuseTests(unittest.TestCase):
                     "--tag", reuse.image_reference(package) + ":latest",
                     reuse.image_reference(package) + "@" + DIGEST,
                 ])
-            self.assertEqual(output.call_args_list[0].args[0]["source_run_id"], "100")
+            self.assertEqual(output.call_args_list[0].args[0]["source_run_id"], str(source["id"]))
 
     def test_fresh_release_accepts_different_builder_and_matrix_image_versions(self):
         current = RUN | {"id": 200, "run_number": 20, "status": "in_progress", "conclusion": None}
@@ -443,7 +490,7 @@ class ReuseTests(unittest.TestCase):
     def test_reused_release_rejects_builder_environment_rollout_before_deb_download(self):
         records = {p: metadata(p) for p in reuse.PACKAGES}
         with patch.dict(os.environ, {
-            "SOURCE_RUN_ID": "100", "SOURCE_ATTEMPT": "1", "ImageVersion": "20261002.1.0",
+            "SOURCE_RUN_ID": "100", "SOURCE_ATTEMPT": "1", "ImageOS": "ubuntu26",
         }), \
                 patch.object(reuse, "run_details", side_effect=[RUN | {"id": 200}, RUN]), \
                 patch.object(reuse, "scratch", return_value=Path("unused")), \

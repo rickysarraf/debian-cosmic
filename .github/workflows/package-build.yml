@@ -53,6 +53,7 @@ jobs:
           PACKAGE_NAME: ${{ matrix.name }}
           EPOCH_CHANGED: ${{ inputs.epoch_changed }}
           UTILS_CHANGED: ${{ inputs.utils_changed }}
+          PR_HEAD_REPOSITORY: ${{ github.event.pull_request.head.repo.full_name }}
         run: |
           set -euo pipefail
           if [[ "$GITHUB_EVENT_NAME" == "schedule" || "$GITHUB_EVENT_NAME" == "workflow_dispatch" ]]; then
@@ -66,6 +67,15 @@ jobs:
             build=false
           fi
           echo "should_build=$build" >> "$GITHUB_OUTPUT"
+          # Main and same-repository PR builds preserve a reusable image/package pair.
+          if [[ "$build" == "true" && "$GITHUB_EVENT_NAME" == "pull_request" ]]; then
+            if [[ "$PR_HEAD_REPOSITORY" == "$GITHUB_REPOSITORY" ]]; then record=true; else record=false; fi
+          elif [[ "$build" == "true" && "$GITHUB_REF" == "refs/heads/main" ]]; then
+            record=true
+          else
+            record=false
+          fi
+          echo "should_record=$record" >> "$GITHUB_OUTPUT"
       - name: Checkout repository
         if: steps.gate.outputs.should_build == 'true'
         uses: actions/checkout@v4
@@ -80,7 +90,7 @@ jobs:
           if docker info > /dev/null 2>&1; then docker system prune -af; fi
           df -h
       - name: Log in to the Container registry
-        if: steps.gate.outputs.should_build == 'true' && github.ref == 'refs/heads/main'
+        if: steps.gate.outputs.should_record == 'true'
         uses: docker/login-action@v3
         with:
           registry: ${{ env.REGISTRY }}
@@ -120,7 +130,7 @@ jobs:
           docker run --rm -v "$DIST_DIR:/dist" -e DEBIAN_FRONTEND=noninteractive debian:testing \
             sh -c 'apt-get update && apt-get install -y /dist/*.deb'
       - name: Preserve immutable source image and package metadata
-        if: steps.gate.outputs.should_build == 'true' && github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+        if: steps.gate.outputs.should_record == 'true'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           PACKAGE_NAME: ${{ matrix.name }}
@@ -131,7 +141,7 @@ jobs:
           docker tag "$LOCAL_IMAGE" "$IMAGE_TAG"
           python3 ci/package_reuse.py record
       - name: Upload lightweight package provenance
-        if: steps.gate.outputs.should_build == 'true' && github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+        if: steps.gate.outputs.should_record == 'true'
         uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.name }}-provenance
