@@ -16,7 +16,7 @@ concurrency:
 env:
   REGISTRY: ghcr.io
   IMAGE_PREFIX: ${{ github.repository_owner }}
-  BASE_VERSION: "1.10.0-1"
+  BASE_VERSION: "1.11.0-1"
 
 jobs:
   changes:
@@ -80,7 +80,7 @@ jobs:
       packages: write
       actions: read
     with:
-      base_version: "1.10.0-1"
+      base_version: "1.11.0-1"
       registry: ghcr.io
       image_prefix: ${{ github.repository_owner }}
       reuse_run_id: ${{ needs.resolve-pair.outputs.run_id }}

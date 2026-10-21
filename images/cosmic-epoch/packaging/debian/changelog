@@ -1,3 +1,45 @@
+cosmic-epoch-monorepo (1.11.0-1) unstable; urgency=low
+
+  * New upstream release: Cosmic Epoch 1.11.0.
+    - Translation and dependency updates for many projects
+    - libcosmic:
+      - Text inputs will not capture escape anymore, fixing menus where
+        escape had to be pressed twice to close them
+      - Fix scrollbar padding
+    - cosmic-app-library:
+      - Make down arrow key select the first app after searching
+      - On hybrid graphics systems, ensure that the correct GPU is used
+        for video games
+    - cosmic-applets:
+      - Fix close button not working after a window is closed from the
+        app list's window previews
+      - Fix bugs with using mouse wheel or touchpad scroll to adjust volume
+    - cosmic-comp:
+      - Implement xdg-dialog-v1 to improve modal dialog behavior
+      - Fix closed windows not being removed when no outputs are connected
+      - Fixes for input methods using the virtual keyboard protocol
+      - Send on-screen keyboard activation over private dbus signal
+    - cosmic-edit:
+      - Add mime type association for JSON files
+    - cosmic-launcher:
+      - Fix blur region overlapping panel
+    - cosmic-notifications:
+      - Fix notification applet not starting
+    - cosmic-osk:
+      - Receive keyboard activation over private dbus signal
+    - cosmic-randr:
+      - Escape serial numbers in formatted output
+    - cosmic-settings:
+      - Options to toggle touchpad tap and drag, and drag lock
+      - Replace broken startup app links
+    - pop-launcher:
+      - Make queries always case insensitive
+      - Improve searching for words inside of parentheses
+      - Use correct GPU on hybrid systems
+      - Fix keyword search weight when there are more keywords
+
+ -- Ritesh Raj Sarraf <rrs@debian.org>  Tue, 20 Oct 2026 22:00:00 +0000
+
 cosmic-epoch-monorepo (1.10.0-1) unstable; urgency=low
 
   * New upstream release: Cosmic Epoch 1.10.0.
