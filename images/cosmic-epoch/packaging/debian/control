@@ -31,6 +31,7 @@ Depends: libpipewire-0.3-0t64,
          libpixman-1-0,
          libdisplay-info3,
          libxcb-xinput0
+Recommends: flatpak, packagekit, appstream, apt-config-icons
 Description: Unified COSMIC Desktop Environment (Epoch Monorepo)
  This package provides the full stack of the System76 COSMIC Desktop 
  Environment, including the compositor, panel, settings, and core 

@@ -1,0 +1,18 @@
+From: Ritesh Raj Sarraf <rrs@debian.org>
+Subject: [PATCH] cosmic-store: build with the packagekit backend
+
+The COSMIC Store is built flatpak-only by default (its `packagekit` feature is
+off), so on stock Debian it has no apt data source and can sit on "Loading...".
+Build it with `--features packagekit` so the store lists Debian packages (via
+AppStream) alongside Flatpak apps, like GNOME Software.
+--- a/justfile
++++ b/justfile
+@@ -25,7 +25,7 @@ build:
+     cd cosmic-settings && {{ just }} build-release
+     cd cosmic-settings-daemon && {{ just }} build-release
+     {{ just }} cosmic-session/build-release
+-    {{ just }} cosmic-store/build-release
++    {{ just }} cosmic-store/build-release --features packagekit
+     {{ just }} cosmic-term/build-release
+     {{ just }} cosmic-viewer/build-release
+     {{ make }} -C cosmic-wallpapers all
