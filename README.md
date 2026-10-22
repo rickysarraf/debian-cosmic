@@ -71,6 +71,8 @@ Download the `.deb` files directly from our [Releases](https://github.com/rickys
 sudo apt install ./cosmic-epoch-monorepo*.deb
 ```
 
+> **COSMIC Store (PackageKit + Flatpak):** see **[NOTES.md](NOTES.md)** — where all downstream notes (store, patches, applets) now live.
+
 #### Option 3: System Extension (`sysext`)
 Run COSMIC as a `systemd-sysext` overlay — no changes to your host `/usr`.
 
